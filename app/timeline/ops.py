@@ -312,11 +312,11 @@ def set_audio_fx(tl: Timeline, fx: list[AudioEffect]) -> tuple[Timeline, Diff]:
 
 def set_reframe(tl: Timeline, mode: str) -> tuple[Timeline, Diff]:
     """Set the 9:16 reframe mode."""
-    if mode not in ("center", "face", "blur", "split_bottom", "split"):
+    if mode not in ("center", "face", "blur", "split_bottom", "split", "adaptive"):
         raise OpError(
             "bad_reframe",
             f"reframe mode {mode!r} unknown",
-            "pick center, face, blur, split_bottom or split",
+            "pick center, face, blur, split_bottom, split or adaptive",
         )
     new_tl = tl.model_copy(update={"reframe": mode}, deep=True)
     return new_tl, Diff(op="set_reframe", details={"mode": mode})

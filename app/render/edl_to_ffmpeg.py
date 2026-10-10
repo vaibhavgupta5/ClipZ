@@ -148,6 +148,30 @@ def build_video_filter(
     """
     asset_labels = asset_labels or {}
     reframe = reframe or tl.reframe  # the timeline decides unless a caller overrides
+    if overlay_windows is None:
+        from app.render.segments import _adaptive_split_intervals, _chained_split_overlay_windows
+        chained = {}
+        if reframe in ("adaptive", "split_adaptive"):
+            split_intervals = _adaptive_split_intervals(tl)
+            chained = _chained_split_overlay_windows(tl, split_intervals)
+
+        computed_overlays = []
+        for overlay in tl.overlays:
+            if overlay.id in chained:
+                at, o_end = chained[overlay.id]
+                computed_overlays.append((overlay, at, o_end))
+            else:
+                try:
+                    computed_overlays.append((overlay, *snap.overlay_window(tl, overlay)))
+                except OpError as exc:
+                    raise RenderError("dangling_anchor", f"overlay anchor lost: {exc}") from None
+        overlay_windows = computed_overlays
+
+    has_split_top = any(o.layout == "split_top" for o, _, _ in overlay_windows)
+    effective_reframe = reframe
+    if reframe in ("adaptive", "split_adaptive"):
+        effective_reframe = "split_bottom" if has_split_top else "blur"
+
     graph = FilterGraph(inputs=["[0:v]"])
     chains: list[str] = []
     cut_points = snap.transition_points(tl)
@@ -155,9 +179,9 @@ def build_video_filter(
         label = graph.add(Trim("[0:v]", start=clip.src_in, end=clip.src_out))
         if abs(clip.speed - 1.0) > 1e-9:
             label = graph.add(SetPts(_lbl(label), factor=1.0 / clip.speed))
-        if reframe in ("split_bottom", "split"):
+        if effective_reframe in ("split_bottom", "split"):
             label = graph.add(ReframeSplitBottom(_lbl(label), profile.width, profile.height))
-        elif reframe == "blur":
+        elif effective_reframe == "blur":
             label = graph.add(ReframeBlur(_lbl(label), profile.width, profile.height))
         else:  # center (face falls back here without tracks)
             label = graph.add(ScaleCrop(_lbl(label), profile.width, profile.height))
@@ -185,13 +209,6 @@ def build_video_filter(
             )
         )
 
-    if overlay_windows is None:
-        overlay_windows = []
-        for overlay in tl.overlays:
-            try:
-                overlay_windows.append((overlay, *snap.overlay_window(tl, overlay)))
-            except OpError as exc:
-                raise RenderError("dangling_anchor", f"overlay anchor lost: {exc}") from None
     for overlay, at, end in sorted(overlay_windows, key=_drawn_last):
         source = asset_labels.get(overlay.id) or asset_labels.get(overlay.asset)
         if source is None:
@@ -207,7 +224,7 @@ def build_video_filter(
             scaled = graph.add(Scale(over, pip_w, -2))
             faded = graph.add(FadeIO(_lbl(scaled), 0.12, 0.12, end - at, start=at))
             main = graph.add(OverlayAt(_lbl(main), _lbl(faded), "(W-w)/2", int(h * 0.16), at, end))
-        elif overlay.layout == "split_top" and overlay.type == "icon":
+        elif overlay.layout == "split_top" and (overlay.type == "icon" or overlay.asset.startswith("icons:")):
             # logo tile: contained and centred in the top panel (never cropped)
             side = int(h * 0.26)
             scaled = graph.add(Scale(over, side, side))

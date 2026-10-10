@@ -518,19 +518,22 @@ def _draw_headline_card(
     test_img = Image.new("RGBA", (1200 * scale, 400 * scale), (0, 0, 0, 0))
     test_draw = ImageDraw.Draw(test_img)
 
+    line_boxes: list[tuple[float, float, float, float]] = []
+    line_widths: list[int] = []
     line_heights: list[int] = []
-    max_line_w = 0
     for line in lines:
         bbox = test_draw.textbbox((0, 0), line, font=font)
+        line_boxes.append(bbox)
         lw = int(bbox[2] - bbox[0])
         lh = int(bbox[3] - bbox[1])
-        max_line_w = max(max_line_w, lw)
+        line_widths.append(lw)
         line_heights.append(lh)
 
+    max_line_w = max(line_widths) if line_widths else 0
     line_gap = 12 * scale
     total_text_h = sum(line_heights) + (len(lines) - 1) * line_gap
     pad_x = 48 * scale
-    pad_y = 24 * scale
+    pad_y = 28 * scale
 
     box_w = min(960 * scale, max(max_line_w + pad_x * 2, 520 * scale))
     box_h = total_text_h + pad_y * 2
@@ -607,16 +610,20 @@ def _draw_headline_card(
         width=2 * scale,
     )
 
-    # 4. Text with subtle shadow
+    # 4. Text with subtle shadow - vertically and horizontally centered
     fg_rgba = _parse_color(text_color, (255, 255, 255, 255))
-    curr_y = pad_y
+    target_block_top = (box_h - total_text_h) / 2.0
+    curr_visual_top = target_block_top
+
     for i, line in enumerate(lines):
-        bbox = card_draw.textbbox((0, 0), line, font=font)
-        lw = int(bbox[2] - bbox[0])
-        x = (box_w - lw) // 2
-        card_draw.text((x, curr_y + 2 * scale), line, font=font, fill=(0, 0, 0, 160))
-        card_draw.text((x, curr_y), line, font=font, fill=fg_rgba)
-        curr_y += line_heights[i] + line_gap
+        bb = line_boxes[i]
+        lw = line_widths[i]
+        lh = line_heights[i]
+        draw_x = round(((box_w - lw) / 2.0) - bb[0])
+        draw_y = round(curr_visual_top - bb[1])
+        card_draw.text((draw_x, draw_y + 2 * scale), line, font=font, fill=(0, 0, 0, 160))
+        card_draw.text((draw_x, draw_y), line, font=font, fill=fg_rgba)
+        curr_visual_top += lh + line_gap
 
     canvas.alpha_composite(card_composite, (shadow_margin, shadow_margin))
 

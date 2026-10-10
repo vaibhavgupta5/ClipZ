@@ -118,12 +118,19 @@ async def render_timeline(
     stats = {"hits": 0, "misses": 0}
     seg_paths: list[str] = []
 
-    cut_points = snap.transition_points(tl)
     for seg in segments:
+        seg_reframe = tl.reframe
+        if tl.reframe in ("adaptive", "split_adaptive"):
+            seg_reframe = "split_bottom" if seg.is_split_layout else "blur"
+
+        # Gaussian blur view (middle video with blur bars) must shift subtitles to
+        # bottom ("center_lower") instead of middle ("center") to avoid covering the speaker.
+        caption_pos = "center_lower" if seg_reframe == "blur" else tl.captions.position
+
         ass_text = ass_for_cues(
             seg.cues,
             font="devanagari" if _needs_devanagari(seg) else "latin",
-            position=tl.captions.position,
+            position=caption_pos,
             words_per_line=tl.captions.words_per_line,
             mode=tl.captions.mode,
             size_px=tl.captions.size_px,
@@ -133,8 +140,8 @@ async def render_timeline(
             animation=tl.captions.animation,
         )
         asset_shas = {aid: _sha_file(asset_files[aid]) for aid in _seg_asset_ids(seg, asset_files)}
-        cut_fx = tl.transition if seg.index in cut_points else "none"
-        variant = f"{profile.name}:{tl.reframe}:{cut_fx}"  # these change every pixel
+        cut_fx = tl.transition if seg.is_speech_cut else "none"
+        variant = f"{profile.name}:{seg_reframe}:{cut_fx}"  # these change every pixel
         key = f"segments/{slice_hash(seg, variant, ass_text, asset_shas)}.mp4"
         local = work / f"seg{seg.index}.mp4"
         try:
@@ -156,7 +163,7 @@ async def render_timeline(
                 on_progress,
                 seg.start / total_dur,
                 (seg.end - seg.start) / total_dur,
-                seg.index in cut_points,
+                seg.is_speech_cut,
             )
             store.put_bytes(key, local.read_bytes(), "video/mp4")
         seg_paths.append(str(local))

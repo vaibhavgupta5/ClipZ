@@ -990,7 +990,8 @@ def _auto_visuals(tool: ToolDef, p: mvp.AutoVisualsIn, state: ToolState) -> Tool
     """Show the matching visual whenever a strong keyword is said (keyword engine)."""
     catalog = _catalog(state)
     tl = state.timeline
-    split = _is_split(tl, p.layout)
+    is_adaptive = tl.reframe in ("adaptive", "split_adaptive")
+    split = _is_split(tl, p.layout) and not is_adaptive
     cues = find_cues(tl, catalog, tuple(p.kinds))
     if not cues:
         raise OpError(
@@ -1002,9 +1003,9 @@ def _auto_visuals(tool: ToolDef, p: mvp.AutoVisualsIn, state: ToolState) -> Tool
     plan = plan_cues(
         cues,
         tl.duration_s,
-        gap_s=SPLIT_SECONDS_PER_INSERT if split else MIN_GAP_S,
-        per_s=SPLIT_SECONDS_PER_INSERT * 1.5 if split else DENSITY[p.density],
-        hook_s=0.0 if split else HOOK_S,
+        gap_s=MIN_GAP_S * 2.0 if is_adaptive else (SPLIT_SECONDS_PER_INSERT if split else MIN_GAP_S),
+        per_s=6.0 if is_adaptive else (SPLIT_SECONDS_PER_INSERT * 1.5 if split else DENSITY[p.density]),
+        hook_s=0.0 if (split or is_adaptive) else HOOK_S,
         used={_library_id(o.asset) for o in tl.overlays},
         busy=busy,
     )
@@ -1016,10 +1017,10 @@ def _auto_visuals(tool: ToolDef, p: mvp.AutoVisualsIn, state: ToolState) -> Tool
             continue
         _, item = found
         try:
-            dur, start = _place(tl, cue.kind, cue.first if split else cue.word, None, p.layout)
+            dur, start = _place(tl, cue.kind, cue.first if (split or is_adaptive) else cue.word, None, p.layout)
             if split:
                 tl = _hand_over(tl, start)
-            anchor = cue.first if split else cue.word
+            anchor = cue.first if (split or is_adaptive) else cue.word
             tl, _ = ops.add_overlay(
                 tl, _overlay(tl, cue.kind, item.id, item, anchor, dur, p.layout)
             )

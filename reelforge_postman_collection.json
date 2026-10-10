@@ -1,0 +1,531 @@
+{
+  "info": {
+    "name": "ReelForge API",
+    "description": "Comprehensive API collection for ReelForge - AI-powered short-form vertical video editor.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "reelforge-dev-key",
+      "type": "string"
+    },
+    {
+      "key": "projectId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "jobId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "renderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "mediaKey",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{apiKey}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "0. Health & Readiness",
+      "item": [
+        {
+          "name": "Health Check (Liveness)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/healthz",
+              "host": ["{{baseUrl}}"],
+              "path": ["healthz"]
+            },
+            "description": "Fast liveness check returning status 200 ok."
+          }
+        },
+        {
+          "name": "Readiness Check (DB, Redis, Storage, Models)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/readyz",
+              "host": ["{{baseUrl}}"],
+              "path": ["readyz"]
+            },
+            "description": "Verifies connectivity to Tiger Data (Postgres+TimescaleDB), Redis, Storage, and model availability."
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Projects & Uploads",
+      "item": [
+        {
+          "name": "Create Project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.project_id) {",
+                  "    pm.collectionVariables.set('projectId', jsonData.project_id);",
+                  "    console.log('Saved projectId:', jsonData.project_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Reel Project\",\n  \"language\": \"auto\",\n  \"caption_script\": \"devanagari\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects"]
+            },
+            "description": "Creates a new reel editing project and sets the {{projectId}} collection variable."
+          }
+        },
+        {
+          "name": "Upload Raw Video",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.job_id) {",
+                  "    pm.collectionVariables.set('jobId', jsonData.job_id);",
+                  "    console.log('Saved jobId:', jsonData.job_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Select an MP4 video file to upload"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/uploads",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "uploads"]
+            },
+            "description": "Uploads a raw video file, starting asynchronous normalization, proxy generation, and Whisper analysis."
+          }
+        },
+        {
+          "name": "Stream Ingest / Analysis Events (SSE)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/jobs/{{jobId}}/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "jobs", "{{jobId}}", "events"]
+            },
+            "description": "Server-Sent Events (SSE) stream tracking progress for video normalization, transcription, and scene detection."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Timeline & Analysis",
+      "item": [
+        {
+          "name": "Get Current Timeline",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/timeline",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "timeline"]
+            },
+            "description": "Returns the current Timeline EDL, clips, captions, zooms, transitions, and audio FX."
+          }
+        },
+        {
+          "name": "Get Analysis Signals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/analysis",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "analysis"]
+            },
+            "description": "Returns scene cuts, voice activity (VAD), speech energy peaks, fillers, and musical beats."
+          }
+        },
+        {
+          "name": "Get Transcript",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/transcript",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "transcript"]
+            },
+            "description": "Returns canonical transcript words with start/end millisecond timestamps and word IDs."
+          }
+        },
+        {
+          "name": "List Timeline Versions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/versions",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "versions"]
+            },
+            "description": "Returns the version history and diff summaries for this project."
+          }
+        },
+        {
+          "name": "Execute Direct EDL Operation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"op\": \"set_captions\",\n  \"params\": {\n    \"mode\": \"word_highlight\",\n    \"size_px\": 96,\n    \"highlight_color\": \"#FFD400\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/ops",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "ops"]
+            },
+            "description": "Applies a deterministic pure timeline op (delete_words, add_zoom, set_captions, set_transition, etc.)."
+          }
+        },
+        {
+          "name": "Undo Last Edit",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/undo",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "undo"]
+            },
+            "description": "Rolls back the current timeline pointer to the previous version."
+          }
+        },
+        {
+          "name": "Redo Last Edit",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/redo",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "redo"]
+            },
+            "description": "Advances the current timeline pointer forward after an undo."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Chat & Director Agent",
+      "item": [
+        {
+          "name": "Send Chat Message (SSE Stream)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Remove awkward silences, add yellow word-by-word captions, and add punch-in zooms on key moments\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "messages"]
+            },
+            "description": "Streams the Director LLM turn over Server-Sent Events (SSE). Emits tool calls, diffs, preview triggers, critic feedback, and final text."
+          }
+        },
+        {
+          "name": "Add Music & Auto SFX (Chat)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Add upbeat background music and auto-sync sound effects to all cuts and zooms\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "messages"]
+            },
+            "description": "Commands the Director to pick a licensed background music bed and sync SFX hits."
+          }
+        },
+        {
+          "name": "Add Top Heading Banner (Chat)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Add a top heading card saying Software Dev is Dead, reframe 9:16 with blur effect, red word-highlight captions, and atmospheric background music\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "messages"]
+            },
+            "description": "Commands the Director to render a crisp top rectangle heading banner overlay across the reel."
+          }
+        },
+        {
+          "name": "Export Final Reel (Chat)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"export\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "messages"]
+            },
+            "description": "Queues the final 1080x1920 export render."
+          }
+        },
+        {
+          "name": "Get Chat History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "messages"]
+            },
+            "description": "Retrieves the conversation message history for the project."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Renders & Media",
+      "item": [
+        {
+          "name": "Trigger Render (Manual)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.render_id) {",
+                  "    pm.collectionVariables.set('renderId', jsonData.render_id);",
+                  "    console.log('Saved renderId:', jsonData.render_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"profile\": \"preview\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/render",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "render"]
+            },
+            "description": "Manually triggers a render for the current timeline version (profile: preview | final)."
+          }
+        },
+        {
+          "name": "Get Render Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.output_key) {",
+                  "    pm.collectionVariables.set('mediaKey', jsonData.output_key);",
+                  "    console.log('Saved mediaKey:', jsonData.output_key);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/renders/{{renderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "renders", "{{renderId}}"]
+            },
+            "description": "Checks the status of a queued render job and returns output_key when finished."
+          }
+        },
+        {
+          "name": "Download / Stream Rendered Video",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/media/{{mediaKey}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["media", "{{mediaKey}}"]
+            },
+            "description": "Streams or downloads the rendered MP4 file or asset by storage key."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Telemetry & Metrics",
+      "item": [
+        {
+          "name": "System Metrics Overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/metrics/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["metrics", "overview"]
+            },
+            "description": "Returns system-wide TimescaleDB continuous aggregates (p95 latencies, token consumption, render timings)."
+          }
+        },
+        {
+          "name": "Project Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/metrics",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "metrics"]
+            },
+            "description": "Returns project-specific LLM tool calls, token usage, cost estimations, and pipeline stage timings."
+          }
+        }
+      ]
+    }
+  ]
+}

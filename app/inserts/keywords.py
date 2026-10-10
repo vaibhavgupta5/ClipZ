@@ -44,11 +44,20 @@ discuss video videos channel subscribe also big small first last next better bes
 """.split()
 )
 
-# Brand aliases that are also everyday words: a brand only when the transcript capitalises
-# them (Whisper writes "React", "Rust", "Apple" for the products).
+TECH_ALWAYS = frozenset({
+    "reactjs", "python", "javascript", "typescript", "docker", "kubernetes",
+    "fastapi", "django", "nextjs", "nodejs", "tailwind", "postgres", "postgresql",
+    "redis", "mongodb", "cursor", "claude", "gemini", "openai", "copilot", "chatgpt",
+    "deepseek", "mistral", "qwen", "grok", "pytorch", "tensorflow", "huggingface",
+    "linux", "ubuntu", "neovim", "figma", "langchain", "ollama", "supabase", "vercel",
+    "firebase", "digitalocean", "cloudflare", "solana", "bitcoin", "ethereum",
+})
+
+# Everyday words that double as brand names: a brand only when the transcript capitalises
+# them (Whisper writes "React", "Rust", "Apple", "Go" for the products) or when in a compound.
 AMBIGUOUS = frozenset({
-    "react", "rust", "swift", "notion", "cursor", "apple", "meta", "snowflake", "go",
-    "flutter", "spotify", "discord", "gemini", "claude", "opus", "sonnet", "x", "torch",
+    "react", "rust", "swift", "notion", "apple", "meta", "snowflake", "go",
+    "flutter", "spotify", "discord", "opus", "sonnet", "x", "torch",
     "container", "containers", "email", "node", "ts", "js", "eth", "mac", "reels", "tweet",
 })  # fmt: skip
 
@@ -107,6 +116,8 @@ def spoken_terms(tl: Timeline) -> list[Term]:
 def _keep(token: str, display: str) -> bool:
     if not token or token in STOPWORDS or token.isdigit():
         return False
+    if token in TECH_ALWAYS:
+        return True
     if token in AMBIGUOUS:
         return display[:1].isupper() and not display.isupper()
     return len(token) >= 3

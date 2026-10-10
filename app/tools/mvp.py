@@ -155,7 +155,7 @@ class ReframeIn(BaseModel):
 
     model_config = Frozen
 
-    mode: Literal["center", "face", "blur", "split_bottom", "split"] = "center"
+    mode: Literal["center", "face", "blur", "split_bottom", "split", "adaptive"] = "center"
 
 
 class PreviewIn(BaseModel):
@@ -706,7 +706,7 @@ TOOLS: list[ToolDef] = [
     ),
     ToolDef(
         name="reframe_9x16",
-        description="9:16 reframe mode (center/face/blur).",
+        description="9:16 vertical reframe mode: 'adaptive' (recommended: smart split-screen when top visuals exist, middle view with gaussian blur when no visual), 'split_bottom' (permanent split), 'blur' (middle blurred fill), or 'center'.",
         input_model=ReframeIn,
         output_model=OpOut,
         needs_preview=True,

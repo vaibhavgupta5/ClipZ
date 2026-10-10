@@ -210,10 +210,10 @@ class Timeline(BaseModel):
     transition: Literal["none", "zoom_in", "flash", "whip"] = Field(
         default="none", description="Effect applied at the start of every clip after a cut"
     )
-    reframe: Literal["center", "face", "blur", "split_bottom", "split"] = Field(
+    reframe: Literal["center", "face", "blur", "split_bottom", "split", "adaptive"] = Field(
         default="center",
         description="9:16 reframe mode (face falls back to center without tracks; "
-        "split_bottom puts the speaker in the bottom half)",
+        "split_bottom puts the speaker in the bottom half; adaptive switches between split and blurred middle view)",
     )
 
     @field_validator("video_clips")
