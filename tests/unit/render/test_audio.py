@@ -86,3 +86,17 @@ def test_music_bed_is_ducked_mixed_then_normalised() -> None:
     assert filt.index("amix") < filt.index("loudnorm") and filt.endswith("[aout]")
     with pytest.raises(ValueError):
         audio_filter([], music=(5.0, 3.0))
+
+
+def test_sfx_hits_are_delayed_and_mixed_before_loudnorm() -> None:
+    filt = audio_filter(
+        [(0.0, 5.0, 1.0)], music=(-20.0, 5.0), sfx=[(1.25, -12.0, 0.25), (3.0, -6.0, 0.9)]
+    )
+    assert "[2:a]aresample=48000" in filt and "adelay=1250|1250[s0]" in filt
+    assert "atrim=end=0.250,afade=t=out:st=0.170:d=0.08" in filt  # click trimmed to 250 ms
+    assert "[3:a]" in filt and "volume=-6.0dB,adelay=3000|3000[s1]" in filt
+    assert "[bed][s0][s1]amix=inputs=3" in filt and filt.index("amix=inputs=3") < filt.index(
+        "loudnorm"
+    )
+    no_music = audio_filter([], sfx=[(0.5, -10.0, 1.0)])
+    assert "[1:a]aresample" in no_music and "[v0][s0]amix=inputs=2" in no_music

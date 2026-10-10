@@ -192,6 +192,10 @@ def test_every_registered_tool_has_a_handler(tmp_path: Path) -> None:
         "remove_insert": {"insert_id": "ins9"},
         "add_inserts": {"items": [{"at_word": "w5", "kind": "image", "query": "money"}]},
         "add_music": {"genre": "upbeat"},
+        "add_zooms": {"word_ids": ["w6"]},
+        "set_transition": {"style": "zoom_in"},
+        "add_sfx": {"sfx_type": "pop", "at_word": "w3"},
+        "auto_sfx": {},
     }
     vad = [SpeechRange(start=0.0, end=10.0)]
     state = ToolState(_long_timeline(), speech=vad, catalog=_catalog(tmp_path))
@@ -232,6 +236,24 @@ def _catalog(tmp_path: Path) -> "AssetCatalog":
     from app.providers.local import AssetCatalog
 
     root = tmp_path / "assets"
+    (root / "sfx").mkdir(parents=True)
+    sfx_items = []
+    for t in ("whoosh", "pop", "click", "swoosh", "record_scratch"):
+        (root / "sfx" / f"{t}.mp3").write_bytes(b"x")
+        sfx_items.append(
+            {
+                "id": f"sfx:{t}",
+                "file": f"{t}.mp3",
+                "title": t,
+                "tags": [t],
+                "source": "test",
+                "license": "CC0-1.0",
+                "attribution_required": False,
+                "commercial_use": True,
+                "sfx_type": t,
+            }
+        )
+    (root / "sfx" / "manifest.json").write_text(json.dumps(sfx_items))
     (root / "music").mkdir(parents=True)
     (root / "music" / "a.mp3").write_bytes(b"x")
     (root / "music" / "manifest.json").write_text(
@@ -397,7 +419,7 @@ def test_add_inserts_places_matches_and_skips_with_reasons(tmp_path: Path) -> No
     assert [p["at_word"] for p in data["placed"]] == ["w4", "w10"]
     assert {s["at_word"]: s["reason"] for s in data["skipped"]} == {
         "w6": "too_close",
-        "w14": "no image matches 'submarine'",
+        "w14": "no unused image matches 'submarine'",
     }
     assert out.timeline is not None and [o.type for o in out.timeline.overlays] == ["gif", "meme"]
 
@@ -413,3 +435,54 @@ def test_add_music_sets_licensed_bed_and_credit(tmp_path: Path) -> None:
     assert attributions(out.timeline) == ["Happy Day by X, CC BY 3.0"]
     gone = _ok(execute("remove_music", {}, ToolState(out.timeline, catalog=state.catalog)))
     assert gone.timeline is not None and gone.timeline.music is None
+
+
+def test_add_inserts_never_repeats_an_asset(tmp_path: Path) -> None:
+    state = ToolState(_long_timeline(), catalog=_catalog(tmp_path))
+    plan = {
+        "items": [
+            {"at_word": "w4", "kind": "image", "query": "money"},
+            {"at_word": "w12", "kind": "image", "query": "money"},  # only one image exists
+        ]
+    }
+    data = _ok(execute("add_inserts", plan, state)).output(version=2).model_dump()
+    assert [p["at_word"] for p in data["placed"]] == ["w4"]
+    assert data["skipped"] == [{"at_word": "w12", "reason": "no unused image matches 'money'"}]
+
+
+def test_add_zooms_enforces_pacing_rules() -> None:
+    state = ToolState(_long_timeline())  # 20 words over 10 s -> cap of 2 zooms
+    out = _ok(execute("add_zooms", {"word_ids": ["w3", "w5", "w12", "w18", "w99"]}, state))
+    data = out.output(version=2).model_dump()
+    assert data["placed"] == ["w3", "w12"]
+    reasons = {s["word"]: s["reason"] for s in data["skipped"]}
+    assert reasons["w5"].startswith("within 2.5s") and reasons["w18"].startswith("density cap")
+    assert reasons["w99"] == "word not in the video"
+    assert out.timeline is not None and out.timeline.zooms[0].hold_ms == 900
+
+
+def test_set_transition_style() -> None:
+    out = _ok(execute("set_transition", {"style": "whip"}, ToolState(_timeline())))
+    assert out.timeline is not None and out.timeline.transition == "whip"
+    assert _fail(execute("set_transition", {"style": "spin"}, ToolState(_timeline()))).errors
+
+
+def test_auto_sfx_syncs_to_cuts_inserts_and_zooms(tmp_path: Path) -> None:
+    from app.timeline import ops as tops
+
+    tl, _ = tops.delete_words(_long_timeline(), ["w9"])  # one cut at ~4.0 s
+    state = ToolState(tl, catalog=_catalog(tmp_path))
+    tl = _ok(
+        execute(
+            "add_inserts", {"items": [{"at_word": "w4", "kind": "gif", "query": "money"}]}, state
+        )
+    ).timeline
+    assert tl is not None
+    tl = _ok(execute("add_zooms", {"word_ids": ["w14"]}, ToolState(tl))).timeline
+    assert tl is not None
+    out = _ok(execute("auto_sfx", {}, ToolState(tl, catalog=state.catalog)))
+    placed = out.output(version=5).model_dump()["placed"]
+    assert [p.split("@")[0] for p in placed] == ["pop", "whoosh", "click"]
+    assert out.timeline is not None and all(h.id.startswith("auto") for h in out.timeline.sfx)
+    again = _ok(execute("auto_sfx", {}, ToolState(out.timeline, catalog=state.catalog)))
+    assert again.timeline is not None and len(again.timeline.sfx) == 3  # idempotent

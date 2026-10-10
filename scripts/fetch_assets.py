@@ -134,6 +134,22 @@ NOTO_REACTIONS: dict[str, list[str]] = {
     "1f92b": ["shush", "secret", "quiet"],
 }
 
+# Sound effects: CC0 only (no credit lines for every pop). type -> queries.
+SFX_TYPES: dict[str, list[str]] = {
+    "whoosh": ["whoosh", "swoosh transition"],
+    "swoosh": ["swoosh", "swish"],
+    "pop": ["pop sound", "bubble pop"],
+    "ding": ["ding", "bell ding"],
+    "riser": ["riser", "tension riser"],
+    "boom": ["boom impact", "cinematic hit"],
+    "click": ["mouse click", "ui click"],
+    "record_scratch": ["record scratch", "vinyl scratch"],
+    "camera": ["camera shutter"],
+    "typing": ["keyboard typing"],
+    "notification": ["notification sound", "message alert"],
+    "glitch": ["glitch", "digital glitch"],
+}  # fmt: skip
+
 MUSIC_GENRES: dict[str, list[str]] = {
     "lofi": ["lofi", "lo-fi chill", "chillhop", "lofi hip hop", "jazzy chill", "chill beat"],
     "upbeat": ["upbeat pop", "happy upbeat"],
@@ -151,6 +167,28 @@ MUSIC_GENRES: dict[str, list[str]] = {
     ],
     "ambient": ["ambient", "calm ambient"],
 }
+# Category -> queries. The category is stored on each item so the Director can search
+# within "tech", "comedy", "info"... Two images per query, CC0/PDM/BY only.
+IMAGE_CATEGORIES: dict[str, list[str]] = {
+    "tech": ["computer code", "programming", "server room", "circuit board", "data center",
+             "smartphone app", "startup office", "artificial intelligence", "keyboard typing"],
+    "comedy": ["funny dog", "funny cat", "surprised face", "facepalm", "laughing people",
+               "silly face", "confused person"],
+    "info": ["classroom", "chalkboard", "bar chart", "world map", "microscope", "library books",
+             "calculator", "newspaper"],
+    "business": ["business meeting", "handshake", "office desk", "presentation", "skyscraper"],
+    "finance": ["coins", "stock chart", "bank", "credit card", "piggy bank", "cash register"],
+    "fitness": ["gym", "running", "yoga", "healthy food"],
+    "food": ["pizza", "burger", "coffee cup", "street food"],
+    "travel": ["airplane", "beach", "train station", "suitcase"],
+    "gaming": ["video game controller", "arcade", "chess"],
+    "science": ["telescope", "laboratory", "space nebula", "dna"],
+    "motivation": ["mountain summit", "trophy", "finish line", "sunrise mountain"],
+    "nature": ["forest", "ocean waves", "waterfall", "storm clouds"],
+    "mood": ["rain window", "empty road", "lonely bench", "dark clouds"],
+}  # fmt: skip
+QUERY_CATEGORY = {q: c for c, qs in IMAGE_CATEGORIES.items() for q in qs}
+
 IMAGE_QUERIES = [
     "money",
     "technology",
@@ -172,6 +210,11 @@ IMAGE_QUERIES = [
     "mountain",
     "office",
     "celebration",
+    "birthday cake",
+    "birthday candles",
+    "balloons",
+    "gift box",
+    "birthday party",
 ]
 GIF_QUERIES = [
     "happy",
@@ -449,12 +492,65 @@ def build_visual(
                 print(f"  skip {lib_name} {item_id}: {exc}", file=sys.stderr)
                 raw.unlink(missing_ok=True)
                 continue
-            tags = [q, *[t["name"] for t in r.get("tags") or [] if t.get("name")][:8]]
-            items.append(_entry(lib_name, item_id, file.name, r, tags=tags, width=w, height=h))
+            category = QUERY_CATEGORY.get(q, "")
+            tags = [
+                q,
+                *([category] if category else []),
+                *[t["name"] for t in r.get("tags") or [] if t.get("name")][:8],
+            ]
+            items.append(
+                _entry(
+                    lib_name, item_id, file.name, r, tags=tags, width=w, height=h, category=category
+                )
+            )
             have.add(f"{lib_name}:{item_id}")
             seen_urls.add(r.get("foreign_landing_url"))
             got += 1
             print(f"  {lib_name}/{q}: {r.get('title')!r} ({r['license']})")
+    return items
+
+
+def build_sfx(f: Fetcher, root: Path, per_type: int = 3) -> list[dict[str, Any]]:
+    """Short CC0 sound effects (0.2-5 s), labelled by type."""
+    lib = root / "sfx"
+    lib.mkdir(parents=True, exist_ok=True)
+    items = _load(lib / "manifest.json")
+    have = {i["id"] for i in items} | set(exclusions())
+    for sfx_type, queries in SFX_TYPES.items():
+        got = sum(1 for i in items if i.get("sfx_type") == sfx_type)
+        for q in queries:
+            if got >= per_type:
+                break
+            params = {"q": q, "license": "cc0", "length": "shortest,short", "page_size": 20}
+            for r in _openverse(f, "audio", params):
+                if got >= per_type:
+                    break
+                item_id = r["id"]
+                dur_ms = r.get("duration") or 0
+                if f"sfx:{item_id}" in have or not 200 <= dur_ms <= 5000:
+                    continue
+                dest = lib / f"{sfx_type}-{item_id[:8]}.mp3"
+                try:
+                    f.download(r["url"], dest, MAX_BYTES["music"], CONTENT_PREFIX["music"])
+                    facts = probe(dest)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  skip sfx {item_id}: {exc}", file=sys.stderr)
+                    dest.unlink(missing_ok=True)
+                    continue
+                items.append(
+                    _entry(
+                        "sfx",
+                        item_id,
+                        dest.name,
+                        r,
+                        tags=[sfx_type, *q.split()],
+                        sfx_type=sfx_type,
+                        duration_s=round(float(facts["format"]["duration"]), 3),
+                    )
+                )
+                have.add(f"sfx:{item_id}")
+                got += 1
+                print(f"  sfx/{sfx_type}: {r.get('title')!r}")
     return items
 
 
@@ -550,32 +646,35 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("--root", default="assets")
-    ap.add_argument("--only", choices=["music", "images", "gifs", "memes"], action="append")
+    ap.add_argument("--only", choices=["music", "images", "gifs", "memes", "sfx"], action="append")
     ap.add_argument("--pace", type=float, default=3.5, help="seconds between Openverse calls")
     ap.add_argument("--purge-only", action="store_true", help="apply exclusions, no downloads")
     args = ap.parse_args()
     root = Path(args.root)
     if args.purge_only:
-        for lib in args.only or ["music", "images", "gifs", "memes"]:
+        for lib in args.only or ["music", "images", "gifs", "memes", "sfx"]:
             manifest = root / lib / "manifest.json"
             kept = purge(root, lib, _load(manifest))
             manifest.write_text(json.dumps(kept, indent=2, ensure_ascii=False) + "\n")
             print(f"   {lib}: {len(kept)} items")
         return
     f = Fetcher(args.pace)
-    libs = args.only or ["music", "images", "gifs", "memes"]
+    libs = args.only or ["music", "images", "gifs", "memes", "sfx"]
     for lib in libs:
         print(f"== {lib}")
         if lib == "music":
             items = build_music(f, root, per_genre=5)
         elif lib == "images":
-            items = build_visual(f, root, "images", IMAGE_QUERIES, per_query=2, min_side=1000)
+            queries = IMAGE_QUERIES + [q for q in QUERY_CATEGORY if q not in IMAGE_QUERIES]
+            items = build_visual(f, root, "images", queries, per_query=2, min_side=1000)
         elif lib == "gifs":
             items = build_visual(f, root, "gifs", GIF_QUERIES, per_query=2, min_side=200)
             (root / "gifs" / "manifest.json").write_text(json.dumps(items, indent=2) + "\n")
             items = build_noto(f, root)
         elif lib == "memes":
-            items = build_memes(f, root, count=40)
+            items = build_memes(f, root, count=100)
+        elif lib == "sfx":
+            items = build_sfx(f, root)
         items = purge(root, lib, items)
         (root / lib).mkdir(parents=True, exist_ok=True)
         (root / lib / "manifest.json").write_text(

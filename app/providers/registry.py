@@ -47,9 +47,7 @@ def provider_registry(settings: Settings | None = None) -> ProviderRegistry:
     settings = settings or get_settings()
     llm: GeminiLLM | FakeLLMProvider = FakeLLMProvider()
     if settings.GEMINI_API_KEY:
-        llm = GeminiLLM(
-            settings.GEMINI_API_KEY, settings.GEMINI_MODEL, settings.GEMINI_THINKING_LEVEL
-        )
+        llm = _gemini(settings)
     root = Path(settings.ASSETS_DIR)
 
     def has(lib: str) -> bool:
@@ -72,4 +70,14 @@ def provider_registry(settings: Settings | None = None) -> ProviderRegistry:
 def director_llm(settings: Settings | None = None) -> ToolCallingLLM:
     """The Director's tool-calling model (Gemini). Raises when no key is configured."""
     settings = settings or get_settings()
-    return GeminiLLM(settings.GEMINI_API_KEY, settings.GEMINI_MODEL, settings.GEMINI_THINKING_LEVEL)
+    return _gemini(settings)
+
+
+def _gemini(settings: Settings) -> GeminiLLM:
+    fallbacks = tuple(m.strip() for m in settings.GEMINI_FALLBACK_MODELS.split(",") if m.strip())
+    return GeminiLLM(
+        settings.GEMINI_API_KEY,
+        settings.GEMINI_MODEL,
+        settings.GEMINI_THINKING_LEVEL,
+        fallback_models=fallbacks,
+    )

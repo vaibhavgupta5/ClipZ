@@ -17,6 +17,7 @@ from app.render.graph import (
     ScaleCrop,
     SetPts,
     ShiftPts,
+    TransitionIn,
     Trim,
     ZoomPunch,
 )
@@ -128,9 +129,10 @@ def build_video_filter(
     profile: RenderProfile,
     asset_labels: dict[str, str] | None = None,
     ass_path: str | None = None,
-    reframe: str = "center",
+    reframe: str | None = None,
     overlay_windows: list[tuple[Overlay, float, float]] | None = None,
     zoom_windows: list[tuple[Zoom, float]] | None = None,
+    after_cut: bool = False,
 ) -> tuple[str, str]:
     """Compile clips + zooms + overlays + captions to (filter_script, video_out).
 
@@ -138,9 +140,10 @@ def build_video_filter(
     when None they are computed from anchors on the full timeline.
     """
     asset_labels = asset_labels or {}
+    reframe = reframe or tl.reframe  # the timeline decides unless a caller overrides
     graph = FilterGraph(inputs=["[0:v]"])
     chains: list[str] = []
-    for clip in tl.video_clips:
+    for index, clip in enumerate(tl.video_clips):
         label = graph.add(Trim("[0:v]", start=clip.src_in, end=clip.src_out))
         if abs(clip.speed - 1.0) > 1e-9:
             label = graph.add(SetPts(_lbl(label), factor=1.0 / clip.speed))
@@ -148,6 +151,11 @@ def build_video_filter(
             label = graph.add(ReframeBlur(_lbl(label), profile.width, profile.height))
         else:  # center (face falls back here without tracks)
             label = graph.add(ScaleCrop(_lbl(label), profile.width, profile.height))
+        follows_cut = after_cut if index == 0 else True
+        if tl.transition != "none" and follows_cut:
+            label = graph.add(
+                TransitionIn(_lbl(label), tl.transition, profile.width, profile.height)
+            )
         chains.append(_lbl(label))
     main = chains[0] if len(chains) == 1 else graph.add(Concat(tuple(chains), n=len(chains)))
 
@@ -163,6 +171,7 @@ def build_video_filter(
                 scale=zoom.scale,
                 width=profile.width,
                 height=profile.height,
+                hold_s=zoom.hold_ms / 1000.0,
             )
         )
 

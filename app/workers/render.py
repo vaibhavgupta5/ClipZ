@@ -128,6 +128,12 @@ async def _run_render(
             raise RenderError("unknown_asset", f"music {timeline.music.asset} not in library")
         asset_files[timeline.music.asset] = str(music_file)
 
+    for hit in timeline.sfx:
+        sfx_file = resolve_asset_file(settings.ASSETS_DIR, meme_dir, hit.asset)
+        if sfx_file is None:
+            raise RenderError("unknown_asset", f"sound effect {hit.asset} not in library")
+        asset_files[hit.asset] = str(sfx_file)
+
     holder = {"db": 0.0}
     push = _progress_writer(db, jid, render)
 

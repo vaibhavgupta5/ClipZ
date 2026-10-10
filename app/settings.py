@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = Field(
         default="gemini-2.5-flash-lite", description="Gemini model (owner: 2.5 Flash-Lite only)"
     )
+    GEMINI_FALLBACK_MODELS: str = Field(
+        default="gemini-3.5-flash-lite",
+        description="Comma-separated models tried in order when the primary's quota is exhausted",
+    )
     GEMINI_THINKING_LEVEL: str = Field(
         default="", description="Gemini thinking level; empty = model default (required for 2.5)"
     )

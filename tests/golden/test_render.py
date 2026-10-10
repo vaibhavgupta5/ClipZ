@@ -164,7 +164,8 @@ async def test_golden_captions_hi() -> None:
 
 
 async def test_golden_zoom() -> None:
-    await _render_frame(_base_tl(zoom=True), {}, 0.6, "zoom.png")
+    # mid-hold: w2 starts 0.5 s, 0.4 s ease-in, then held -> fully zoomed at 1.3 s
+    await _render_frame(_base_tl(zoom=True), {}, 1.3, "zoom.png")
 
 
 LAYOUTS = ["cutaway_full", "pip_pop", "split_top", "lower_third_card", "blur_bg_contain"]

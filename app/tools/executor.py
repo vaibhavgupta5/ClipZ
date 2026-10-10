@@ -22,7 +22,9 @@ from app.timeline.schema import (
     Diff,
     MusicBed,
     Overlay,
+    SfxHit,
     Timeline,
+    Zoom,
 )
 from app.timeline.summary import summarize
 from app.timeline.validate import validate_timeline
@@ -227,6 +229,16 @@ def _dispatch(tool: ToolDef, p: BaseModel, state: ToolState) -> ToolOutcome:
             return _insert_meme(tool, p, state)
         case mvp.AddInsertsIn():
             return _add_inserts(tool, p, state)
+        case mvp.AddZoomsIn():
+            return _add_zooms(tool, p, state)
+        case mvp.SetTransitionIn():
+            new_tl = tl.model_copy(update={"transition": p.style})
+            diff = Diff(op="set_transition", details={"style": p.style})
+            return ToolOutcome(tool, Effect.NEW_VERSION, new_tl, diff, {"op": tool.name})
+        case mvp.AddSfxIn():
+            return _add_sfx(tool, p, state)
+        case mvp.AutoSfxIn():
+            return _auto_sfx(tool, p, state)
         case mvp.RemoveInsertIn():
             return _edit(tool, ops.remove_overlay(tl, p.insert_id))
         case mvp.AskUserIn():
@@ -402,6 +414,170 @@ def _insert_meme(tool: ToolDef, p: mvp.InsertMemeIn, state: ToolState) -> ToolOu
     return _edit(tool, ops.add_overlay(state.timeline, overlay))
 
 
+ZOOM_GAP_S = 2.5  # between punch-ins
+SECONDS_PER_ZOOM = 4.0  # density cap
+FULLSCREEN = {"cutaway_full", "blur_bg_contain"}
+
+
+def _add_zooms(tool: ToolDef, p: mvp.AddZoomsIn, state: ToolState) -> ToolOutcome:
+    """Place punch-ins in time order; skip ones that break the pacing rules (with reasons)."""
+    tl = state.timeline
+    covered = [(a, b) for a, b, oid in _windows(tl) if _overlay_by_id(tl, oid).layout in FULLSCREEN]
+    taken = [snap.output_time_of(tl, z.anchor_word) for z in tl.zooms]
+    cap = max(1, int(tl.duration_s / SECONDS_PER_ZOOM))
+    placed: list[str] = []
+    skipped: list[dict[str, str]] = []
+    candidates = []
+    for wid in dict.fromkeys(p.word_ids):
+        try:
+            candidates.append((snap.output_time_of(tl, wid), wid))
+        except OpError:
+            skipped.append({"word": wid, "reason": "word not in the video"})
+    for at, wid in sorted(candidates):
+        reason = ""
+        if len(taken) >= cap:
+            reason = f"density cap ({cap} zooms for {tl.duration_s:.0f}s)"
+        elif any(abs(at - t) < ZOOM_GAP_S for t in taken):
+            reason = f"within {ZOOM_GAP_S}s of another zoom"
+        elif any(a - 0.3 <= at <= b for a, b in covered):
+            reason = "under a full-screen insert"
+        if reason:
+            skipped.append({"word": wid, "reason": reason})
+            continue
+        n = len(tl.zooms) + 1
+        while any(z.id == f"z{n}" for z in tl.zooms):
+            n += 1
+        zoom = Zoom(id=f"z{n}", anchor_word=wid, scale=p.scale, dur_ms=180, hold_ms=p.hold_ms)
+        tl, _ = ops.add_zoom(tl, zoom)
+        taken.append(at)
+        placed.append(wid)
+    if not placed:
+        return ToolOutcome(
+            tool,
+            Effect.NONE,
+            fields={"placed": [], "skipped": skipped, "summary": "no zooms placed"},
+        )
+    diff = Diff(op="add_zooms", details={"words": ",".join(placed)})
+    return ToolOutcome(
+        tool, Effect.NEW_VERSION, tl, diff, {"op": tool.name, "placed": placed, "skipped": skipped}
+    )
+
+
+INSERT_SFX = {"gif": "pop", "image": "swoosh", "meme": "record_scratch"}
+# Crisp single hits: library takes can be long or repeat (e.g. a 4.6 s run of clicks).
+SFX_MAX_MS = {
+    "click": 250, "pop": 500, "camera": 500, "notification": 700, "ding": 900,
+    "whoosh": 900, "swoosh": 900, "glitch": 700, "record_scratch": 1200,
+    "boom": 1500, "typing": 1500, "riser": 2000,
+}  # fmt: skip
+
+
+def _sfx_hit(
+    catalog: AssetCatalog,
+    sfx_type: str,
+    hit_id: str,
+    word: str,
+    offset_ms: int,
+    gain: float,
+    n: int,
+) -> SfxHit | None:
+    item = catalog.sfx(sfx_type, n)
+    if item is None:
+        return None
+    return SfxHit(
+        id=hit_id,
+        asset=item.id,
+        anchor_word=word,
+        offset_ms=max(-500, min(500, offset_ms)),
+        gain_db=gain,
+        license=item.license,
+        max_ms=SFX_MAX_MS.get(sfx_type, 1500),
+    )
+
+
+def _add_sfx(tool: ToolDef, p: mvp.AddSfxIn, state: ToolState) -> ToolOutcome:
+    catalog = _catalog(state)
+    tl = state.timeline
+    n = len(tl.sfx)
+    hit = _sfx_hit(catalog, p.sfx_type, f"sfx{n + 1}", p.at_word, p.offset_ms, p.gain_db, n)
+    if hit is None:
+        raise OpError(
+            "no_sfx",
+            f"no {p.sfx_type} sounds installed",
+            f"types: {', '.join(catalog.sfx_types())}",
+        )
+    while any(s.id == hit.id for s in tl.sfx):
+        n += 1
+        hit = hit.model_copy(update={"id": f"sfx{n + 1}"})
+    return _edit(tool, ops.add_sfx(tl, hit))
+
+
+def _word_ending_before(tl: Timeline, t: float) -> tuple[str, float] | None:
+    """Last on-timeline word ending at or before output time ``t`` (word id, its end)."""
+    best: tuple[str, float] | None = None
+    for w in tl.transcript.words:
+        try:
+            end = snap.output_time_of(tl, w.id, "end")
+        except OpError:
+            continue
+        if end <= t + 1e-6 and (best is None or end > best[1]):
+            best = (w.id, end)
+    return best
+
+
+def _auto_sfx(tool: ToolDef, p: mvp.AutoSfxIn, state: ToolState) -> ToolOutcome:
+    """Replace previous auto hits with hits synced to cuts, inserts and zooms."""
+    catalog = _catalog(state)
+    tl = state.timeline.model_copy(
+        update={"sfx": [s for s in state.timeline.sfx if not s.id.startswith("auto")]}
+    )
+    plan: list[tuple[str, float, float]] = []  # (type, output time, gain)
+    if p.on_cuts:
+        t = 0.0
+        for clip in tl.video_clips[:-1]:
+            t += clip.output_len
+            plan.append(("whoosh", t - 0.15, p.gain_db))  # lead into the cut
+    if p.on_inserts:
+        for at, _end, oid in _windows(tl):
+            kind = _overlay_by_id(tl, oid).type
+            plan.append((INSERT_SFX.get(kind, "pop"), at - 0.05, p.gain_db + 2))
+    if p.on_zooms:
+        for z in tl.zooms:
+            try:
+                plan.append(("click", snap.output_time_of(tl, z.anchor_word), p.gain_db - 6))
+            except OpError:
+                continue
+    hits: list[SfxHit] = []
+    placed: list[str] = []
+    for n, (sfx_type, at, gain) in enumerate(sorted(plan, key=lambda x: x[1])):
+        anchor = _word_ending_before(tl, at + 0.5)
+        if anchor is None:
+            continue
+        offset = round((at - anchor[1]) * 1000)
+        if not -500 <= offset <= 500:
+            continue  # cannot anchor accurately: skip rather than misplace
+        hit = _sfx_hit(catalog, sfx_type, f"auto{n + 1}", anchor[0], offset, max(-30.0, gain), n)
+        if hit is not None:
+            hits.append(hit)
+            placed.append(f"{sfx_type}@{at:.2f}s")
+    if not hits:
+        return ToolOutcome(
+            tool, Effect.NONE, fields={"placed": [], "summary": "no sound effects placed"}
+        )
+    new_tl = tl.model_copy(update={"sfx": [*tl.sfx, *hits]})
+    diff = Diff(op="auto_sfx", details={"hits": str(len(hits))})
+    return ToolOutcome(tool, Effect.NEW_VERSION, new_tl, diff, {"op": tool.name, "placed": placed})
+
+
+def _overlay_by_id(tl: Timeline, overlay_id: str) -> Overlay:
+    return next(o for o in tl.overlays if o.id == overlay_id)
+
+
+def _library_id(asset: str) -> str:
+    """Library id of an overlay asset (rendered memes carry a ':<digest>' suffix)."""
+    return ":".join(asset.split(":")[:2])
+
+
 def _add_inserts(tool: ToolDef, p: mvp.AddInsertsIn, state: ToolState) -> ToolOutcome:
     """Match + place each planned insert on the evolving timeline; skip with reasons."""
     catalog = _catalog(state)
@@ -409,11 +585,12 @@ def _add_inserts(tool: ToolDef, p: mvp.AddInsertsIn, state: ToolState) -> ToolOu
     placed: list[dict[str, str]] = []
     skipped: list[dict[str, str]] = []
     for item in p.items:
-        hits = catalog.search(item.kind, item.query, 1)
+        # Never show the same asset twice in one reel: take the next-best unused match.
+        used = {_library_id(o.asset) for o in tl.overlays}
+        hits = [h for h in catalog.search(item.kind, item.query, 5) if h.id not in used][:1]
         if not hits:
-            skipped.append(
-                {"at_word": item.at_word, "reason": f"no {item.kind} matches '{item.query}'"}
-            )
+            reason = f"no unused {item.kind} matches '{item.query}'"
+            skipped.append({"at_word": item.at_word, "reason": reason})
             continue
         try:
             dur, _ = _place(tl, item.kind, item.at_word, None)

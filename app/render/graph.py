@@ -161,10 +161,11 @@ class FadeIO:
 
 @dataclass(frozen=True)
 class ZoomPunch:
-    """Linear punch-in: scale 1 -> `scale` over `dur_s` starting at `at`.
+    """Punch-in envelope: ease in over `dur_s`, hold `hold_s`, ease out over `out_s`.
 
-    Animated scale + STATIC center crop (crop has no per-frame eval; the target
-    size is constant so a fixed crop is exact).
+    Smoothstep easing (e*e*(3-2e)) on an animated scale + STATIC center crop (the
+    target size is constant, so a fixed crop is exact). hold_s=0 keeps the old
+    "zoom and stay" behaviour for the rest of the clip.
     """
 
     input: str
@@ -173,13 +174,56 @@ class ZoomPunch:
     scale: float
     width: int
     height: int
+    hold_s: float = 0.0
+    out_s: float = 0.25
 
     def render(self, out: str) -> str:
         if self.scale <= 1.001:
             return f"{self.input}null{out}"
         t0, d, s = _s(self.at), _s(self.dur_s), self.scale
-        z = f"(1+({s}-1)*clip((t-{t0})/{d}\\,0\\,1))"
+        rise = f"clip((t-{t0})/{d}\\,0\\,1)"
+        if self.hold_s > 0:
+            t1 = _s(self.at + self.dur_s + self.hold_s)
+            fall = f"clip(({t1}+{_s(self.out_s)}-t)/{_s(self.out_s)}\\,0\\,1)"
+            env = f"min({rise}\\,{fall})"
+        else:
+            env = rise
+        ease = f"({env})*({env})*(3-2*({env}))"
+        z = f"(1+({s}-1)*{ease})"
         return f"{self.input}scale=iw*{z}:ih*{z}:eval=frame,crop={self.width}:{self.height}{out}"
+
+
+@dataclass(frozen=True)
+class TransitionIn:
+    """Incoming cut effect on a clip that is already width x height (clip-local time).
+
+    zoom_in: starts 12% punched-in and eases to 1.0 over 0.28 s.
+    flash:   fades in from white over 0.15 s.
+    whip:    slides in horizontally from the right with motion blur over 0.18 s.
+    """
+
+    input: str
+    style: str
+    width: int
+    height: int
+
+    def render(self, out: str) -> str:
+        w, h = self.width, self.height
+        if self.style == "zoom_in":
+            e = "clip(t/0.28\\,0\\,1)"
+            z = f"(1+0.12*(1-({e})*({e})*(3-2*({e}))))"
+            return f"{self.input}scale=iw*{z}:ih*{z}:eval=frame,crop={w}:{h}{out}"
+        if self.style == "flash":
+            return f"{self.input}fade=t=in:st=0:d=0.15:color=white{out}"
+        if self.style == "whip":
+            e = "clip(t/0.18\\,0\\,1)"
+            x = f"(iw-ow)/2+(iw-ow)/2*(1-({e})*({e})*(3-2*({e})))"
+            return (
+                f"{self.input}scale={int(w * 1.25) // 2 * 2}:{int(h * 1.25) // 2 * 2},"
+                f"crop={w}:{h}:x='{x}':y=(ih-oh)/2,"
+                f"boxblur=luma_radius=18:luma_power=1:enable='lt(t\\,0.14)'{out}"
+            )
+        return f"{self.input}null{out}"
 
 
 @dataclass(frozen=True)

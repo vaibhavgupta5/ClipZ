@@ -101,6 +101,10 @@ def main() -> None:
         help="custom chat turn(s) instead of the MVP script; export always runs last",
     )
     ap.add_argument("--monetized", action="store_true", help="export as monetised")
+    ap.add_argument("--language", default="auto", choices=["auto", "en", "hi"])
+    ap.add_argument(
+        "--no-export", action="store_true", help="the chat turn itself asks for the export"
+    )
     args = ap.parse_args()
     video = Path(args.video)
     if not video.exists():
@@ -110,9 +114,8 @@ def main() -> None:
     with httpx.Client(base_url=args.api, headers={"X-API-Key": args.key}, timeout=60) as c:
         ready = c.get("/readyz").json()
         log("readyz", json.dumps(ready["checks"]))
-        pid = c.post("/projects", json={"name": "MVP demo", "language": "auto"}).json()[
-            "project_id"
-        ]
+        body = {"name": "MVP demo", "language": args.language}
+        pid = c.post("/projects", json=body).json()["project_id"]
         log("project", pid)
 
         with video.open("rb") as fh:
@@ -140,8 +143,11 @@ def main() -> None:
                 assert any(n == "timeline_version_created" for n, _ in events), "no edit made"
         tl_now = c.get(f"/projects/{pid}/timeline").json()
         log("timeline", tl_now["summary"].replace("\n", " | "))
-        export_cmd = "export" if args.monetized else "export the final video, not monetized"
-        final = chat(c, pid, export_cmd)
+        if args.no_export:
+            final = events
+        else:
+            export_cmd = "export" if args.monetized else "export the final video, not monetized"
+            final = chat(c, pid, export_cmd)
         ready_evt = next((d for n, d in final if n == "render_ready"), None)
         if ready_evt is None:
             raise SystemExit("export did not finish within CHAT_PREVIEW_WAIT_S")

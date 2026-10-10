@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from arq import func
 from arq.connections import RedisSettings
 
 from app.db import get_db, migrate
@@ -39,7 +40,13 @@ async def health_ping(ctx: dict[str, Any]) -> dict[str, str]:
 class WorkerSettings:
     """Arq worker config (functions registered per phase)."""
 
-    functions = [health_ping, ingest_asset, analyze_asset, render_task]
+    # Long-running media jobs get explicit budgets (arq's default is 300 s).
+    functions = [
+        health_ping,
+        func(ingest_asset, timeout=600),
+        func(analyze_asset, timeout=1200),
+        func(render_task, timeout=1800),
+    ]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(get_settings().REDIS_URL)

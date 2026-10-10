@@ -131,7 +131,9 @@ async def render_timeline(
             animation=tl.captions.animation,
         )
         asset_shas = {aid: _sha_file(asset_files[aid]) for aid in _seg_asset_ids(seg, asset_files)}
-        key = f"segments/{slice_hash(seg, profile.name, ass_text, asset_shas)}.mp4"
+        cut_fx = tl.transition if seg.index > 0 else "none"
+        variant = f"{profile.name}:{tl.reframe}:{cut_fx}"  # these change every pixel
+        key = f"segments/{slice_hash(seg, variant, ass_text, asset_shas)}.mp4"
         local = work / f"seg{seg.index}.mp4"
         try:
             store.stat(key)
@@ -178,7 +180,9 @@ async def render_timeline(
     on_progress(0.85)
 
     music_path = asset_files.get(tl.music.asset) if tl.music else None
-    audio_path = await asyncio.to_thread(_render_audio, tl, master_path, work, music_path)
+    audio_path = await asyncio.to_thread(
+        _render_audio, tl, master_path, work, music_path, asset_files
+    )
     on_progress(0.95)
 
     out_hash = _timeline_hash(tl, profile)
@@ -234,7 +238,11 @@ def _render_segment(
         if overlay.asset not in asset_files:
             raise RenderError("unknown_asset", f"no local file for overlay asset {overlay.asset}")
     # One input per overlay window (same asset twice = two inputs, each time-shifted).
-    inputs = build_inputs(master, [(asset_files[o.asset], end) for o, _start, end in seg.overlays])
+    # Each overlay input lasts exactly its window: ShiftPts moves it to `start`, so a
+    # longer input would outlive the segment and stretch the video stream.
+    inputs = build_inputs(
+        master, [(asset_files[o.asset], end - start) for o, start, end in seg.overlays]
+    )
     asset_labels = {o.id: f"[{i}:v]" for i, (o, _, _) in enumerate(seg.overlays, start=1)}
     slice_tl = tl.model_copy(update={"video_clips": seg.clips})
     script, video_out = build_video_filter(
@@ -244,6 +252,7 @@ def _render_segment(
         ass_path=ass_path if tl.captions.mode != "off" else None,
         overlay_windows=seg.overlays,
         zoom_windows=seg.zooms,
+        after_cut=seg.index > 0,
     )
     args = (
         [ffmpeg_path(), "-y"]
@@ -262,12 +271,40 @@ def audio_settings(tl: Timeline) -> tuple[bool, float]:
     return denoise, lufs
 
 
-def _render_audio(tl: Timeline, master: str, work: Path, music_path: str | None = None) -> str:
+def sfx_hits(tl: Timeline, files: dict[str, str]) -> list[tuple[str, float, float, float]]:
+    """(file, output_seconds, gain_db, max_s) for each hit whose anchor survives the cuts."""
+    from app.timeline import snap
+    from app.timeline.errors import OpError
+
+    out = []
+    for hit in tl.sfx:
+        path = files.get(hit.asset)
+        if path is None:
+            raise RenderError("unknown_asset", f"no local file for sfx {hit.asset}")
+        try:
+            at = snap.output_time_of(tl, hit.anchor_word, "end") + hit.offset_ms / 1000.0
+        except OpError:
+            continue  # its word was cut: drop the hit
+        if 0.0 <= at < tl.duration_s:
+            out.append((path, at, hit.gain_db, hit.max_ms / 1000.0))
+    return out
+
+
+def _render_audio(
+    tl: Timeline,
+    master: str,
+    work: Path,
+    music_path: str | None = None,
+    sfx_files: dict[str, str] | None = None,
+) -> str:
     from app.media.probe import probe_file
 
     denoise, lufs = audio_settings(tl)
     music = (tl.music.level_db, tl.duration_s) if tl.music and music_path else None
     music_in = ["-stream_loop", "-1", "-i", music_path] if music and music_path else []
+    hits = sfx_hits(tl, sfx_files or {})
+    sfx_in = [arg for path, _, _, _ in hits for arg in ("-i", path)]
+    sfx = [(at, gain, max_s) for _, at, gain, max_s in hits]
     try:
         has_audio = probe_file(master).acodec is not None
     except Exception:
@@ -290,8 +327,9 @@ def _render_audio(tl: Timeline, master: str, work: Path, music_path: str | None 
             "-hide_banner",
             *audio_in,
             *music_in,
+            *sfx_in,
             "-filter_complex",
-            audio_filter(spans, denoise=denoise, lufs=lufs, music=music),
+            audio_filter(spans, denoise=denoise, lufs=lufs, music=music, sfx=sfx),
             "-map",
             "[aout]",
             "-f",
@@ -314,8 +352,9 @@ def _render_audio(tl: Timeline, master: str, work: Path, music_path: str | None 
             "-y",
             *audio_in,
             *music_in,
+            *sfx_in,
             "-filter_complex",
-            audio_filter(spans, measured, denoise=denoise, lufs=lufs, music=music),
+            audio_filter(spans, measured, denoise=denoise, lufs=lufs, music=music, sfx=sfx),
             "-map",
             "[aout]",
             "-c:a",

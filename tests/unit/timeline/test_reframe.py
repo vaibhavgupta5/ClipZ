@@ -45,3 +45,14 @@ def test_blur_reframe_compiles() -> None:
 
     script, _ = build_video_filter(_timeline(), PREVIEW, reframe="blur")
     assert "boxblur" in script
+
+
+def test_compiler_uses_the_timelines_reframe_mode() -> None:
+    """Regression: the renderer never passed tl.reframe, so blur was silently ignored."""
+    from app.render.edl_to_ffmpeg import PREVIEW, build_video_filter
+
+    blurred = _timeline().model_copy(update={"reframe": "blur"})
+    script, _ = build_video_filter(blurred, PREVIEW)
+    assert "boxblur" in script
+    plain, _ = build_video_filter(_timeline(), PREVIEW)
+    assert "boxblur" not in plain

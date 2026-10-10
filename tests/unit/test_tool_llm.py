@@ -180,3 +180,83 @@ async def test_scripted_llm_replays_and_records() -> None:
     assert second.text == "done: {}"
     third = await llm.complete_with_tools(_request())
     assert third.calls == [] and len(llm.requests) == 3
+
+
+async def test_quota_exhaustion_fails_fast_with_hint() -> None:
+    from app.providers.gemini import QuotaExhausted
+
+    class RateLimited(Exception):
+        status_code = 429
+
+        def __str__(self) -> str:
+            return (
+                "Error code: 429 - {'error': {'message': "
+                "'Rate limit exceeded (20 requests per day). Please retry in 19h'}}"
+            )
+
+    class Failing:
+        async def create(self, **_: Any) -> Any:
+            raise RateLimited
+
+    llm = GeminiLLM(api_key="", client=SimpleNamespace(aio=SimpleNamespace(interactions=Failing())))
+    with pytest.raises(QuotaExhausted, match="retry in 19h"):
+        await llm.complete_with_tools(_request())
+
+
+async def test_quota_falls_back_to_next_model() -> None:
+    class RateLimited(Exception):
+        status_code = 429
+
+    class PerModel:
+        def __init__(self) -> None:
+            self.models: list[str] = []
+
+        async def create(self, **body: Any) -> Any:
+            self.models.append(body["model"])
+            if body["model"] == "gemini-2.5-flash-lite":
+                raise RateLimited("{'message': 'limit: 20 requests per day'}")
+            return SimpleNamespace(status="completed", model=body["model"], steps=[], usage=None)
+
+    fake = PerModel()
+    llm = GeminiLLM(
+        api_key="",
+        client=SimpleNamespace(aio=SimpleNamespace(interactions=fake)),
+        fallback_models=("gemini-3.5-flash-lite",),
+    )
+    reply = await llm.complete_with_tools(_request())
+    assert fake.models == ["gemini-2.5-flash-lite", "gemini-3.5-flash-lite"]
+    assert reply.model == "gemini-3.5-flash-lite"  # cost is logged against the model used
+
+
+async def test_overload_is_retried_then_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.providers.gemini as gem
+
+    monkeypatch.setattr(gem, "OVERLOAD_BACKOFF_S", (0.0, 0.0))
+
+    class Busy(Exception):
+        status_code = 503
+
+    class Quota(Exception):
+        status_code = 429
+
+    class Flaky:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        async def create(self, **body: Any) -> Any:
+            self.calls.append(body["model"])
+            if body["model"] == "a":
+                raise Quota("{'message': 'out'}")
+            if len(self.calls) < 4:  # b: 503 twice, then succeeds
+                raise Busy("high demand")
+            return SimpleNamespace(status="completed", model=body["model"], steps=[], usage=None)
+
+    fake = Flaky()
+    llm = GeminiLLM(
+        api_key="",
+        model="a",
+        client=SimpleNamespace(aio=SimpleNamespace(interactions=fake)),
+        fallback_models=("b",),
+    )
+    reply = await llm.complete_with_tools(_request())
+    assert fake.calls == ["a", "b", "b", "b"] and reply.model == "b"

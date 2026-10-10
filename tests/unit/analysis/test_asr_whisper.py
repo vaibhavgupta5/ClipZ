@@ -14,6 +14,9 @@ class _FakeModel:
         self.detected = detected
         self.calls: list[str | None] = []
 
+    def detect_language(self, audio: Any, **_: Any) -> tuple[str, float, list[Any]]:
+        return self.detected, 0.7, []
+
     def transcribe(self, audio: Any, language: str | None, **_: Any) -> tuple[Any, Any]:
         self.calls.append(language)
         lang = language or self.detected
@@ -46,8 +49,8 @@ async def test_unsupported_language_redecodes_as_likelier_of_en_hi(
 ) -> None:
     model = _FakeModel("pt")
     tx = await _transcriber(model, monkeypatch).transcribe("x.wav", "auto")
-    assert model.calls == [None, "en", "hi"]  # both decoded; equal confidence keeps en
-    assert tx.language == "en"
+    assert model.calls == ["en", "hi"]  # en not confident enough -> hi tried too
+    assert tx.language == "en"  # equal confidence keeps the Roman decode
 
 
 async def test_explicit_language_is_not_redecoded(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -62,9 +65,12 @@ class _Hinglish:
     def __init__(self) -> None:
         self.calls: list[str | None] = []
 
+    def detect_language(self, audio: Any, **_: Any) -> tuple[str, float, list[Any]]:
+        return "hi", 0.69, []
+
     def transcribe(self, audio: Any, language: str | None, **_: Any) -> tuple[Any, Any]:
         self.calls.append(language)
-        prob = {None: 0.3, "en": 0.85, "hi": 0.2}[language]
+        prob = {"en": 0.85, "hi": 0.2}[str(language)]
         words = [SimpleNamespace(word=" bhai", start=0.0, end=0.3, probability=prob)]
         info = SimpleNamespace(language="hi", language_probability=0.69, all_language_probs=[])
         return iter([SimpleNamespace(words=words)]), info
@@ -73,7 +79,7 @@ class _Hinglish:
 async def test_hinglish_prefers_confident_roman_decode(monkeypatch: pytest.MonkeyPatch) -> None:
     model = _Hinglish()
     tx = await _transcriber(model, monkeypatch).transcribe("x.wav", "auto")  # type: ignore[arg-type]
-    assert model.calls == [None, "en", "hi"]
+    assert model.calls == ["en"]  # confident Roman decode: the slow hi decode is skipped
     assert tx.language == "hinglish" and tx.words[0].lang == "en"
 
 

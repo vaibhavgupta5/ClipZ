@@ -8,6 +8,7 @@ import asyncio
 import tempfile
 import time
 import uuid
+from collections.abc import Awaitable
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,7 @@ from app.analysis.romanize import romanize
 from app.analysis.scenes import SceneDetector
 from app.analysis.vad import EnergyVad
 from app.db import Database
+from app.logging_setup import get_logger
 from app.media.probe import probe_duration_s
 from app.models import Job
 from app.models import Timeline as TimelineRow
@@ -36,6 +38,8 @@ from app.timeline.versions import save_version
 
 ANALYZER = "full"
 VERSION = "1"
+
+log = get_logger(component="analyze")
 
 
 def _vad() -> Any:
@@ -74,6 +78,15 @@ def _default_llm(settings: Settings) -> LLMProvider | None:
     return provider_registry(settings).llm
 
 
+async def _optional[T](name: str, work: Awaitable[T], fallback: T) -> T:
+    """Run an enrichment stage; on any failure log it and use the fallback."""
+    try:
+        return await work
+    except Exception as exc:  # noqa: BLE001 - enrichment is best effort by design
+        log.warning("analysis stage skipped", stage=name, error=f"{type(exc).__name__}: {exc}")
+        return fallback
+
+
 async def run_stages(
     video_path: str,
     wav_path: str,
@@ -100,7 +113,7 @@ async def run_stages(
     lang = transcript.language if transcript.language != "auto" else language
     fillers_stage = stages.get("fillers")
     if fillers_stage is None:
-        fillers_stage = FillerFinder(lang if lang in ("en", "hi") else "en")
+        fillers_stage = FillerFinder(lang if lang in ("en", "hi", "hinglish") else "en")
     fillers = fillers_stage.find(transcript)
 
     beats_stage = stages.get("beats")
@@ -111,12 +124,14 @@ async def run_stages(
             emphasis_stage.tag(transcript, energy),
         )
     elif llm is not None:
+        # LLM enrichment is optional: a slow or failing model call must not lose the
+        # transcript, VAD and scenes that the editor actually needs.
         emphasis, beat_list = await asyncio.gather(
-            tag_emphasis(transcript, energy, llm),
-            detect_beats(transcript, llm),
+            _optional("emphasis", tag_emphasis(transcript, energy, llm), []),
+            _optional("beats", detect_beats(transcript, llm), []),
         )
-        if caption_script == "roman":
-            transcript = await romanize(transcript, llm)
+        if caption_script == "roman" and lang == "hi":
+            transcript = await _optional("romanize", romanize(transcript, llm), transcript)
     else:
         emphasis, beat_list = [], []
 

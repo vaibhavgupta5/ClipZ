@@ -32,3 +32,15 @@ def test_trim_rounds_to_ms() -> None:
     g.add(Trim("[0:v]", start=0.333333, end=1.0))
     script, _ = g.compile()
     assert "start=0.333" in script
+
+
+def test_zoom_punch_eases_in_holds_and_eases_out() -> None:
+    from app.render.graph import ZoomPunch
+
+    held = ZoomPunch(
+        "[v]", at=1.0, dur_s=0.2, scale=1.15, width=540, height=960, hold_s=0.8
+    ).render("[o]")
+    assert "min(clip((t-1.000)/0.200" in held and "clip((2.000+0.250-t)/0.250" in held
+    assert "*(3-2*(" in held  # smoothstep easing
+    stay = ZoomPunch("[v]", at=1.0, dur_s=0.2, scale=1.15, width=540, height=960).render("[o]")
+    assert "min(" not in stay  # hold_s=0 keeps zoom-and-stay

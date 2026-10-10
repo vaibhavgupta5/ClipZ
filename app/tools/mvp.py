@@ -344,6 +344,81 @@ class MusicOut(BaseModel):
     summary: str
 
 
+class AddZoomsIn(BaseModel):
+    """Punch-in zooms that land on key words (claims, numbers, punchlines)."""
+
+    model_config = Frozen
+
+    word_ids: list[str] = Field(min_length=1, max_length=12, description="Word IDs to punch in on")
+    scale: float = Field(default=1.12, ge=1.05, le=1.25, description="1.08 subtle .. 1.2 strong")
+    hold_ms: int = Field(default=900, ge=200, le=3000, description="Time held before easing out")
+
+
+class ZoomsOut(BaseModel):
+    """Placed and skipped zooms."""
+
+    model_config = Frozen
+
+    version: int
+    op: str = "add_zooms"
+    placed: list[str]
+    skipped: list[dict[str, str]]
+    summary: str
+
+
+class SetTransitionIn(BaseModel):
+    """Cut style applied at every cut."""
+
+    model_config = Frozen
+
+    style: Literal["none", "zoom_in", "flash", "whip"] = Field(
+        description="zoom_in = energetic punch, whip = fast slide, flash = white flash"
+    )
+
+
+SfxType = Literal[
+    "whoosh", "swoosh", "pop", "ding", "riser", "boom", "click",
+    "record_scratch", "camera", "typing", "notification", "glitch",
+]  # fmt: skip
+
+
+class AddSfxIn(BaseModel):
+    """One sound effect as a word ends (offset shifts it, e.g. -150 to lead a reveal)."""
+
+    model_config = Frozen
+
+    sfx_type: SfxType
+    at_word: str = Field(pattern=r"^w\d+$")
+    offset_ms: int = Field(default=0, ge=-500, le=500)
+    gain_db: float = Field(default=-12.0, ge=-30.0, le=0.0)
+
+
+class AutoSfxIn(BaseModel):
+    """Deterministic sound design synced to the edit."""
+
+    model_config = Frozen
+
+    on_cuts: bool = Field(default=True, description="whoosh on every cut")
+    on_inserts: bool = Field(
+        default=True, description="pop on stickers, swoosh on images, scratch on memes"
+    )
+    on_zooms: bool = Field(default=True, description="subtle click as each punch-in lands")
+    gain_db: float = Field(
+        default=-12.0, ge=-30.0, le=-3.0, description="base level under the voice"
+    )
+
+
+class SfxOut(BaseModel):
+    """Sound effects placed."""
+
+    model_config = Frozen
+
+    version: int
+    op: str = "auto_sfx"
+    placed: list[str]
+    summary: str
+
+
 class RemoveInsertIn(BaseModel):
     """Remove an insert by id (ins1, ins2...)."""
 
@@ -516,6 +591,38 @@ TOOLS: list[ToolDef] = [
         description="Remove the background music.",
         input_model=EmptyIn,
         output_model=OpOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="add_zooms",
+        description="Punch-in zooms on key words (claims, numbers, punchlines). Rules are "
+        "enforced: >= 2.5 s apart, at most one per 4 s, never under a full-screen insert.",
+        input_model=AddZoomsIn,
+        output_model=ZoomsOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="set_transition",
+        description="Professional cut transitions applied at every cut (after smart cuts).",
+        input_model=SetTransitionIn,
+        output_model=OpOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="add_sfx",
+        description="Add one sound effect (whoosh, pop, ding, riser, boom, click, "
+        "record_scratch, camera, typing, notification, glitch) as a word ends.",
+        input_model=AddSfxIn,
+        output_model=OpOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="auto_sfx",
+        description="Sound design synced to the edit: whoosh on cuts, pop on stickers, "
+        "swoosh on image cutaways, record scratch on memes, click on zooms. Call it after "
+        "cuts, transitions, inserts and zooms are in place.",
+        input_model=AutoSfxIn,
+        output_model=SfxOut,
         needs_preview=True,
     ),
     ToolDef(

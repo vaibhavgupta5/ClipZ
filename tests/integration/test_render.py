@@ -1,6 +1,7 @@
 """Renderer integration tests: real ffmpeg preview renders. Opt-in (slow)."""
 
 import os
+import subprocess
 import tempfile
 import uuid
 from pathlib import Path
@@ -149,3 +150,95 @@ async def test_caption_change_rerenders_one_segment() -> None:
     out2 = await _render(tl3)
     assert out2["stats"]["misses"] == 1, out2["stats"]
     assert out2["stats"]["hits"] == 1
+
+
+async def test_animated_and_still_inserts_keep_the_timeline_duration() -> None:
+    """Overlay inputs must last exactly their window (regression: video ran 2x long)."""
+    import asyncio as _asyncio
+
+    from app.timeline.schema import Overlay
+
+    tl, _ = ops.split(_timeline(), "w3")  # two segments, inserts in the second
+    store = get_storage(get_settings())
+    with tempfile.TemporaryDirectory(prefix="reelforge-ov-test-") as tmp:
+        gif = Path(tmp) / "sticker.gif"
+        await _asyncio.to_thread(
+            subprocess.run,
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=120x120:rate=10:duration=2",
+                str(gif),
+            ],
+            check=True,
+        )
+        overlays = [
+            Overlay(
+                id="g1",
+                type="gif",
+                asset="gif",
+                anchor_word="w3",
+                duration_ms=1000,
+                layout="pip_pop",
+                license="CC0-1.0",
+            ),
+            Overlay(
+                id="c1",
+                type="image",
+                asset="card",
+                anchor_word="w5",
+                duration_ms=600,
+                layout="blur_bg_contain",
+                license="CC0-1.0",
+            ),
+        ]
+        tl = tl.model_copy(update={"overlays": overlays})
+        master = str(Path(tmp) / "master.mp4")
+        await _asyncio.to_thread(Path(master).write_bytes, _master_bytes())
+        files = {"gif": str(gif), "card": "fixtures/synth/card_red.png"}
+        out = await render_timeline(tl, master, files, PREVIEW, store, tmp, lambda f: None)
+        path = Path(tmp) / "out.mp4"
+        path.write_bytes(store.get_bytes(str(out["key"])))
+        probe = (
+            await _asyncio.to_thread(
+                subprocess.run,
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "stream=codec_type,duration",
+                    "-of",
+                    "csv=p=0",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        ).stdout.split()
+    durations = {line.split(",")[0]: float(line.split(",")[1]) for line in probe}
+    assert abs(durations["video"] - tl.duration_s) < 0.1, durations
+    assert abs(durations["audio"] - tl.duration_s) < 0.1, durations
+
+
+@pytest.mark.parametrize("style", ["zoom_in", "flash", "whip"])
+async def test_cut_transitions_render(style: str) -> None:
+    """Every transition style is accepted by ffmpeg and keeps the timeline duration."""
+    tl, _ = ops.delete_words(_timeline(), ["w3"])  # one cut -> two segments
+    tl = tl.model_copy(update={"transition": style})
+    out = await _render(tl)
+    data = get_storage(get_settings()).get_bytes(out["key"])
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+        f.write(data)
+        path = f.name
+    try:
+        info = probe_file(path)
+    finally:
+        os.unlink(path)
+    assert abs(info.duration_s - tl.duration_s) < 0.1

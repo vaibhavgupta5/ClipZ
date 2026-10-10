@@ -68,6 +68,7 @@ def split_segments(tl: Timeline) -> list[Segment]:
             if start - 1e-6 <= at <= end + 1e-6:
                 zooms.append((zoom, at - start))
 
+        meme_windows = _meme_windows(tl)
         cues: list[CaptionCue] = []
         for w in words:
             try:
@@ -75,6 +76,8 @@ def split_segments(tl: Timeline) -> list[Segment]:
                 we = snap.output_time_of(tl, w.id, "end")
             except OpError:
                 continue  # cut word: no caption
+            if any(ms < we and ws < me for ms, me in meme_windows):
+                continue  # a meme's own text is the caption while it is on screen
             lo, hi = max(ws, start), min(we, end)
             if hi - lo > 1e-6:
                 cues.append(
@@ -100,11 +103,31 @@ def split_segments(tl: Timeline) -> list[Segment]:
     return segments
 
 
+def _meme_windows(tl: Timeline) -> list[tuple[float, float]]:
+    """Output-time windows of meme inserts (captions are hidden under them)."""
+    out = []
+    for o in tl.overlays:
+        if o.type != "meme":
+            continue
+        try:
+            at = snap.output_time_of(tl, o.anchor_word, "end") + o.offset_ms / 1000.0
+        except OpError:
+            continue
+        out.append((at, at + o.duration_ms / 1000.0))
+    return out
+
+
+# Bump whenever render logic changes output for the same timeline slice, so cached
+# segments rendered by older code are never reused (e.g. the overlay-duration fix).
+RENDER_VERSION = "4"
+
+
 def slice_hash(
     segment: Segment, profile_name: str, ass_text: str, asset_shas: dict[str, str]
 ) -> str:
-    """Content hash: slice EDL + profile + captions + overlay bytes. 16 hex chars."""
+    """Content hash: renderer version + slice EDL + profile + captions + overlay bytes."""
     doc = {
+        "renderer": RENDER_VERSION,
         "clips": [c.model_dump(mode="json") for c in segment.clips],
         "overlays": [(o.id, o.layout, rs, re) for o, rs, re in segment.overlays],
         "zooms": [(z.id, ra) for z, ra in segment.zooms],

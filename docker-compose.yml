@@ -44,6 +44,7 @@ services:
       EDITED_DIR: /srv/data/editedVideo
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
+      GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-3.5-flash-lite}
       GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL:-}
       ASSETS_DIR: /srv/assets
       UV_CACHE_DIR: /tmp/uv
@@ -74,6 +75,7 @@ services:
       EDITED_DIR: /srv/data/editedVideo
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
+      GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-3.5-flash-lite}
       GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL:-}
       ASSETS_DIR: /srv/assets
       WHISPER_MODEL: ${WHISPER_MODEL:-small}

@@ -49,6 +49,8 @@ class LibraryItem(BaseModel):
     height: int = 0
     text_boxes: int = 2
     alpha: bool = False  # transparent sticker (overlay without a box)
+    sfx_type: str = ""  # whoosh, pop, ding... (sound effects library)
+    category: str = ""  # tech, comedy, info... (images)
 
 
 def asset_url(library: str, file: str) -> str:
@@ -286,7 +288,7 @@ def _draw_meme(src: Path, dest: Path, top: str, bottom: str) -> None:
     img.save(dest, "PNG")
 
 
-LIBRARIES = ("images", "gifs", "memes", "music")
+LIBRARIES = ("images", "gifs", "memes", "music", "sfx")
 
 
 def resolve_asset_file(assets_root: str | Path, meme_dir: str | Path, asset_id: str) -> Path | None:
@@ -309,7 +311,7 @@ def resolve_asset_file(assets_root: str | Path, meme_dir: str | Path, asset_id: 
 class AssetCatalog:
     """Synchronous facade over the local libraries for the tool executor."""
 
-    KINDS = {"image": "images", "gif": "gifs", "meme": "memes", "music": "music"}
+    KINDS = {"image": "images", "gif": "gifs", "meme": "memes", "music": "music", "sfx": "sfx"}
 
     def __init__(self, assets_root: str | Path, meme_dir: str | Path) -> None:
         self.root = Path(assets_root)
@@ -326,6 +328,15 @@ class AssetCatalog:
         where = {"genre": genre} if genre else None
         items = lib.search(mood, 20, where=where) if (mood or where) else list(lib.items)
         return sorted(items, key=lambda i: i.duration_s < min_s)
+
+    def sfx(self, sfx_type: str, variant: int = 0) -> LibraryItem | None:
+        """One sound of a type; ``variant`` rotates through the available takes."""
+        takes = [i for i in self._libs["sfx"].items if i.sfx_type == sfx_type]
+        return takes[variant % len(takes)] if takes else None
+
+    def sfx_types(self) -> list[str]:
+        """Sound-effect types available."""
+        return sorted({i.sfx_type for i in self._libs["sfx"].items if i.sfx_type})
 
     def genres(self) -> list[str]:
         """Music genre labels available."""

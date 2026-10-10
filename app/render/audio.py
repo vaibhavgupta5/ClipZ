@@ -52,21 +52,43 @@ def audio_filter(
     denoise: bool = True,
     lufs: float = _LUFS,
     music: tuple[float, float] | None = None,
+    sfx: list[tuple[float, float, float]] | None = None,
 ) -> str:
     """Full audio filter. spans = [(src_in, src_out, speed)]; empty = whole input.
 
-    music = (level_db, output_duration_s): a bed on input 1 (looped by the caller),
-    ducked under the voice, mixed, then loudness-normalised together.
+    Inputs: 0 = voice, 1 = music bed (when ``music``), then one input per SFX hit.
+    music = (level_db, output_duration_s): looped by the caller, ducked under the voice.
+    sfx = [(at_s, gain_db, max_s)]: each hit trimmed (short fade) and delayed to its time.
+    Everything is mixed first and loudness-normalised together.
     """
-    voice = _voice_filter(spans, denoise)
     tail = f"aresample=async=1,{_norm_filter(measured, lufs)}"
-    if music is None:
-        return f"{voice},{tail}[aout]"
-    level_db, duration_s = music
-    return (
-        f"{voice},asplit=2[vo][sc];{music_chain(level_db, duration_s)};"
-        f"[vo][duck]amix=inputs=2:duration=first:normalize=0,{tail}[aout]"
-    )
+    parts = [f"{_voice_filter(spans, denoise)}[v0]"]
+    bed = "[v0]"
+    if music is not None:
+        level_db, duration_s = music
+        parts.append("[v0]asplit=2[vo][sc]")
+        parts.append(music_chain(level_db, duration_s))
+        parts.append("[vo][duck]amix=inputs=2:duration=first:normalize=0[bed]")
+        bed = "[bed]"
+    hits = sfx or []
+    first_sfx = 2 if music is not None else 1
+    labels = []
+    for k, (at_s, gain_db, max_s) in enumerate(hits):
+        if not -40.0 <= gain_db <= 6.0:
+            raise ValueError(f"sfx gain {gain_db} dB outside -40..6")
+        ms = max(0, round(at_s * 1000))
+        parts.append(
+            f"[{first_sfx + k}:a]aresample=48000,aformat=channel_layouts=stereo,"
+            f"atrim=end={max_s:.3f},afade=t=out:st={max(0.0, max_s - 0.08):.3f}:d=0.08,"
+            f"volume={gain_db:.1f}dB,adelay={ms}|{ms}[s{k}]"
+        )
+        labels.append(f"[s{k}]")
+    if labels:
+        mix = f"{bed}{''.join(labels)}amix=inputs={len(labels) + 1}:duration=first:normalize=0,"
+        parts.append(f"{mix}{tail}[aout]")
+    else:
+        parts.append(f"{bed}{tail}[aout]")
+    return ";".join(parts)
 
 
 def _voice_filter(spans: list[tuple[float, float, float]], denoise: bool) -> str:

@@ -22,6 +22,8 @@ from app.providers.tools import (
 )
 
 DEFAULT_MODEL = "gemini-2.5-flash-lite"
+CALL_TIMEOUT_S = 45.0
+OVERLOAD_BACKOFF_S = (2.0, 5.0)  # retries for 5xx overload before trying the next model
 _STATUS: dict[str, StopReason] = {
     "completed": "end_turn",
     "requires_action": "tool_use",
@@ -34,12 +36,25 @@ class ProviderUnavailable(RuntimeError):
     """Key unset or SDK missing; the message says how to fix it."""
 
 
+class QuotaExhausted(ProviderUnavailable):
+    """Gemini rate/quota limit hit (the message includes Google's retry hint)."""
+
+
 class ProviderFailed(RuntimeError):
     """The model run failed or was cancelled."""
 
 
 def _text(text: str) -> list[dict[str, Any]]:
     return [{"type": "text", "text": text}]
+
+
+def _quota_hint(exc: Exception) -> str:
+    """Google's own message (limit + retry delay), trimmed."""
+    import re
+
+    text = str(exc)
+    match = re.search(r"'message': '([^']+)'", text)
+    return (match.group(1) if match else text)[:200]
 
 
 def to_steps(messages: list[AgentMessage]) -> list[dict[str, Any]]:
@@ -164,19 +179,53 @@ class GeminiLLM:
         model: str = DEFAULT_MODEL,
         thinking_level: str = "",
         client: Any | None = None,
+        fallback_models: tuple[str, ...] = (),
     ) -> None:
         self.model = model
+        self.fallback_models = fallback_models
         self.thinking_level = thinking_level
         self._api_key = api_key
         self._client = client
+
+    async def _create(self, body: dict[str, Any]) -> Any:
+        """One Interactions call, bounded in time; on quota exhaustion the same request is
+        retried on each fallback model in order (owner: 2.5 Flash-Lite -> 3.5 Flash-Lite)."""
+        import asyncio
+
+        hints: list[str] = []
+        for model in (body["model"], *self.fallback_models):
+            for attempt, delay in enumerate((*OVERLOAD_BACKOFF_S, None)):
+                try:
+                    return await asyncio.wait_for(
+                        self._interactions().create(**{**body, "model": model}), CALL_TIMEOUT_S
+                    )
+                except Exception as exc:
+                    status = getattr(exc, "status_code", None)
+                    if status == 429:  # quota: this model is done for now, try the next
+                        hints.append(f"{model}: {_quota_hint(exc)}")
+                        break
+                    if isinstance(status, int) and status >= 500 and delay is not None:
+                        await asyncio.sleep(delay)  # transient overload (503 "high demand")
+                        continue
+                    if isinstance(status, int) and status >= 500:
+                        hints.append(f"{model}: overloaded after {attempt + 1} tries")
+                        break
+                    raise
+        raise QuotaExhausted("Gemini unavailable on every model: " + " | ".join(hints))
 
     def _interactions(self) -> Any:
         if self._client is None:
             if not self._api_key:
                 raise ProviderUnavailable("GEMINI_API_KEY is empty; set it to use Gemini")
             from google import genai
+            from google.genai._gaos.utils.retries import RetryConfig
 
             self._client = genai.Client(api_key=self._api_key)
+            # The SDK otherwise retries 429s with silent back-off, so an exhausted quota
+            # looks like a hang; fail fast and tell the user instead.
+            self._client.aio.interactions.sdk_configuration.retry_config = RetryConfig(
+                "none", None, False
+            )
         return self._client.aio.interactions
 
     async def complete_with_tools(
@@ -184,7 +233,7 @@ class GeminiLLM:
     ) -> ToolTurnReply:
         """One tool turn (non-streamed; the full reply text is emitted once)."""
         body = build_body(request, self.model, self.thinking_level)
-        reply = parse_interaction(await self._interactions().create(**body))
+        reply = parse_interaction(await self._create(body))
         if on_text is not None and reply.text:
             on_text(reply.text)
         return reply
@@ -206,7 +255,7 @@ class GeminiLLM:
         )
         del body["tools"]
         body["generation_config"]["temperature"] = request.temperature
-        reply = parse_interaction(await self._interactions().create(**body))
+        reply = parse_interaction(await self._create(body))
         return ChatReply(
             text=reply.text,
             model=reply.model or self.model,

@@ -8,9 +8,10 @@ from typing import Any
 from app.analysis.adapters import ModelUnavailable
 from app.timeline.transcript import Transcript, Word
 
-ASR_LOGIC = "3"  # bump when decoding logic changes: part of the analysis cache key
+ASR_LOGIC = "5"  # bump when decoding logic changes: part of the analysis cache key
 SUPPORTED = ("en", "hi")
-CONFIDENT = 0.8  # language-ID probability above which we trust an "en" detection
+CONFIDENT = 0.9  # language-ID probability above which we trust the detected language
+GOOD_ENOUGH = 0.5  # mean word probability at which a Roman-script decode is accepted
 
 
 def asr_version(model_size: str) -> str:
@@ -78,17 +79,24 @@ class FasterWhisperTranscriber:
             if lang is not None:
                 segments, info = _run(lang)
                 return segments, info, lang
-            segments, info = _run(None)
-            detected = getattr(info, "language", None)
-            confidence = float(getattr(info, "language_probability", 0.0) or 0.0)
-            if detected == "en" and confidence >= CONFIDENT:
-                return segments, info, "en"
-            # Uncertain or Hindi: Hinglish often decodes far better as Roman-script English
-            # than as Devanagari. Decode both and keep the more confident transcript.
-            candidates = {code: _run(code) for code in SUPPORTED}
-            best = max(candidates, key=lambda code: _mean_prob(candidates[code][0]))
-            label = "hinglish" if best == "en" and detected == "hi" else best
-            return (*candidates[best], label)
+            # Language ID only (seconds), not a full decode in an unknown language.
+            detected, confidence, _ = self._model.detect_language(
+                _load_pcm16k(wav_path), vad_filter=True
+            )
+            if detected in SUPPORTED and confidence >= CONFIDENT:
+                segments, info = _run(str(detected))
+                return segments, info, str(detected)
+            # Uncertain (often Hinglish): Roman-script English usually decodes far better
+            # and ~10x faster than Devanagari. Accept it when it is confident enough;
+            # only otherwise pay for the Hindi decode and keep the more confident one.
+            en = _run("en")
+            label = "hinglish" if detected == "hi" else "en"
+            if _mean_prob(en[0]) >= GOOD_ENOUGH:
+                return (*en, label)
+            hi = _run("hi")
+            if _mean_prob(hi[0]) > _mean_prob(en[0]):
+                return (*hi, "hi")
+            return (*en, label)
 
         def _run(language_code: str | None) -> tuple[list[Any], Any]:
             # segments is a lazy generator: consume it here, inside the worker thread,
@@ -97,7 +105,11 @@ class FasterWhisperTranscriber:
             # own PyAV path breaks on av>=19 (removed `metadata_errors`).
             audio = _load_pcm16k(wav_path)
             segments, info = self._model.transcribe(
-                audio, language=language_code, word_timestamps=True, vad_filter=True
+                audio,
+                language=language_code,
+                word_timestamps=True,
+                vad_filter=True,
+                condition_on_previous_text=False,  # stops repetition loops on noisy audio
             )
             return list(segments), info
 

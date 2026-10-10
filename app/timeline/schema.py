@@ -81,7 +81,10 @@ class Zoom(BaseModel):
     id: str = Field(min_length=1, description="Zoom ID, unique per timeline")
     anchor_word: str = Field(pattern=WORD_ID, description="Word ID the zoom lands on")
     scale: float = Field(gt=0, description="Zoom scale (policy range enforced by validator)")
-    dur_ms: int = Field(default=220, ge=100, le=2000, description="Zoom duration")
+    dur_ms: int = Field(default=220, ge=100, le=2000, description="Ease-in time of the punch")
+    hold_ms: int = Field(
+        default=900, ge=0, le=5000, description="Time held zoomed before easing back out"
+    )
 
 
 class Overlay(BaseModel):
@@ -129,6 +132,7 @@ class SfxHit(BaseModel):
     anchor_word: str = Field(pattern=WORD_ID, description="Anchor word")
     offset_ms: int = Field(default=0, ge=-500, le=500, description="Offset from word end")
     gain_db: float = Field(default=-8.0, le=0.0, description="Hit gain")
+    max_ms: int = Field(default=1500, ge=50, le=10000, description="Hit is trimmed to this length")
     license: str = Field(default="", description="Clip license (presence enforced by validator)")
 
 
@@ -161,6 +165,9 @@ class Timeline(BaseModel):
     output: OutputSpec = Field(default_factory=OutputSpec)
     style_id: str | None = Field(default=None)
     trend_pack: str | None = Field(default=None)
+    transition: Literal["none", "zoom_in", "flash", "whip"] = Field(
+        default="none", description="Effect applied at the start of every clip after a cut"
+    )
     reframe: Literal["center", "face", "blur"] = Field(
         default="center", description="9:16 reframe mode (face falls back to center without tracks)"
     )
