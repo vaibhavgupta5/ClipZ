@@ -104,3 +104,13 @@
 - Coverage autofix: if requested music, SFX, captions, noise reduction, 9:16 framing or silence removal are still missing after the one follow-up note, the Director applies defaults itself. Music genre comes from the request mood, then the transcript topic, limited to installed genres. The reply lists them under "Applied".
 - The Director prompt is now `app/agent/prompts/director.txt`, role-based: role, inputs, process (understand -> plan -> edit -> verify), craft rules, safety. The new read-only `plan_edit` tool makes the plan visible.
 - Deviation from ADR-010 (from the integrated work-in-progress, kept): `./work/<project>` is no longer deleted after a final export. Re-exports after late edits (and dubbing) need the master. Cleanup should move to project deletion (gap).
+
+## ADR-020: Studio web app; the model cannot waive the monetisation guard
+- Studio: `GET /app` serves one static page (`app/web/index.html`, vanilla JS, no build step) in a Claude-Code-like dark terminal style.
+  - Projects plus drag-and-drop upload with progress; ingest progress over SSE (via fetch, since EventSource cannot send `X-API-Key`).
+  - Brainstorm mode: `POST /projects/{id}/brainstorm`, prompt `app/agent/prompts/brainstorm.txt`. No tools, so nothing is edited. It ends with `FINAL PROMPT: ...`, which the page offers to send or edit.
+  - Edit mode streams Director events. Tool calls show as steps, `plan_edit` as a plan card, `ask_user` as option chips.
+  - Results: player plus download. Media is fetched with the key into blob URLs, so keys never appear in URLs.
+  - Clickable subtitles insert word IDs into the prompt; the timeline summary has undo/redo.
+  - New read APIs: `GET /projects`, `GET /projects/{id}/renders`. The key is kept in the browser's localStorage (dev auth, as before).
+- Live run on testInput.mp4 showed the model exporting with `monetized=false` on its own after the guard refused. The Director now refuses `export(monetized=false)` unless the user's own message waives it ("not monetised", "personal use", "export as is"); otherwise the model is told to ask. The step cap is 14, and the cap path also runs the coverage autofix.

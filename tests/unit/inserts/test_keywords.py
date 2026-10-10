@@ -135,3 +135,30 @@ def test_add_inserts_without_query_uses_what_is_said(tmp_path: Path) -> None:
     assert isinstance(out, ToolOutcome) and out.timeline is not None
     assert out.timeline.overlays[0].asset == "icons:openai"
     assert out.timeline.overlays[0].type == "icon"
+
+
+def test_split_panel_gaps_are_filled_with_on_topic_visuals(tmp_path: Path) -> None:
+    # keywords only at the start; the rest of the speech names nothing in the library
+    text = "ChatGPT money server " + " ".join(["blah"] * 30)
+    state = ToolState(_tl(text, reframe="split_bottom"), catalog=_catalog(tmp_path))
+    out = execute("auto_visuals", {}, state)
+    assert isinstance(out, ToolOutcome) and out.timeline is not None
+    windows = sorted(snap.overlay_window(out.timeline, o) for o in out.timeline.overlays)
+    assert len(windows) == 4  # 3 spoken keywords + the spare server shot in the empty stretch
+    assert windows[-1][0] - windows[-2][1] < 2.5  # it lands in the first long gap
+    placed = out.output(version=2).model_dump()["placed"]
+    assert any(p["said"].startswith("topic:") for p in placed)
+
+
+def test_inserting_an_asset_twice_says_it_is_already_shown(tmp_path: Path) -> None:
+    from app.tools.executor import ToolFailure
+
+    state = ToolState(_tl(TEXT), catalog=_catalog(tmp_path))
+    first = execute("insert_asset", {"asset_id": "icons:openai", "at_word": "w5"}, state)
+    assert isinstance(first, ToolOutcome) and first.timeline is not None
+    again = execute(
+        "insert_asset",
+        {"asset_id": "icons:openai", "at_word": "w20"},
+        ToolState(first.timeline, catalog=state.catalog),
+    )
+    assert isinstance(again, ToolFailure) and again.errors[0].code == "already_shown"

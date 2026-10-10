@@ -138,7 +138,12 @@ def autofix_calls(
         "silence removal": ("remove_silence", {}),
     }
     calls = [defaults[g] for g in gaps if g in defaults]
-    # sound effects go last: they sync to the cuts and inserts placed before them
+    if "cut transitions" in gaps:
+        calm = re.search(r"\b(?:calm|soft|subtle|moody|sad|chill)\b", message.lower())
+        calls.append(("set_transition", {"style": "flash" if calm else "zoom_in"}))
+    # sound effects sync to the cuts and inserts placed before them; export is always last
     if "sound effects" in gaps:
         calls.append(("auto_sfx", {}))
+    if "export" in gaps:
+        calls.append(("export", {}))
     return calls

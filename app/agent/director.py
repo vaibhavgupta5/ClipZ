@@ -7,6 +7,7 @@ Persistence and rendering go through ``Workspace`` so the loop is testable offli
 
 import dataclasses
 import json
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -40,8 +41,14 @@ from app.tools.executor import (
 )
 from app.tools.registry import ELEVENLABS_TOOLS, get_tool, tool_specs
 
-MAX_ITERS = 8
+MAX_ITERS = 14  # plan + ~10 edits + reply; flash models often make one call per turn
 MAX_FAILURES_PER_TOOL = 2
+# The user's own words waiving the monetisation guard (ADR-014).
+CONSENT = re.compile(
+    r"not (?:be )?monetis|not (?:be )?monetiz|non[- ]?monetis|non[- ]?monetiz|personal use|"
+    r"non[- ]?commercial|monetized\s*=\s*false|export as is",
+    re.IGNORECASE,
+)
 
 EventType = Literal[
     "token",
@@ -155,8 +162,10 @@ class _Turn:
         emit: Emit,
         result: DirectorResult,
         generator: AudioGenerator | None = None,
+        message: str = "",
     ) -> None:
         self.ws = ws
+        self.message = message
         self.generator = generator
         self.emit = emit
         self.result = result
@@ -173,6 +182,20 @@ class _Turn:
         if self.failures.get(call.name, 0) >= MAX_FAILURES_PER_TOOL:
             return self._error(
                 call, f"{call.name} failed {MAX_FAILURES_PER_TOOL} times; stop and tell the user"
+            )
+        if (
+            call.name == "export"
+            and call.args.get("monetized") is False
+            and not CONSENT.search(self.message)
+        ):
+            # ADR-014: only the user may waive the monetisation guard.
+            self.log.append((call.name, False, "needs_consent"))
+            return self._error(
+                call,
+                "monetized=false needs the user's say-so. Fix: call ask_user whether the reel "
+                "will be monetised (options: 'Not monetised, export as is' / 'Swap the "
+                "personal-use assets'), then stop",
+                "needs_consent",
             )
         started = time.monotonic()
         state = await self.ws.state()
@@ -321,7 +344,7 @@ async def run_director(
     """
     sink: Emit = emit or (lambda _e: None)
     result = DirectorResult(model=llm.model)
-    turn = _Turn(ws, sink, result, generator)
+    turn = _Turn(ws, sink, result, generator, message)
 
     direct = route(message)
     if direct is not None:
@@ -411,7 +434,13 @@ async def run_director(
             break
     else:
         result.stopped = "cap"
-        result.reply = f"I stopped after {max_iters} steps; tell me what to do next."
+        result.reply = "Here is what I did."
+        gaps = coverage.missing(
+            message, {t for t, ok, _ in turn.log if ok}, (await ws.state()).timeline
+        )
+        if gaps:  # out of steps: still deliver the requested basics (music, SFX, export...)
+            result.coverage_followup = result.coverage_followup or gaps
+            await _autofix(turn, gaps, message, tl)
     await turn.finish()
     result.reply = _grounded(result.reply, turn.log)
     result.history = msgs

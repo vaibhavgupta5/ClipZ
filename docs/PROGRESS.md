@@ -62,6 +62,10 @@
   tiles (ADR-018); per-kind duration caps (no more 6-15 s images); split-screen panel hand-over;
   shared overlay windows; transitions and whooshes only at real cuts; coverage autofix (music + SFX
   are always applied when asked); role-based `director.txt` + `plan_edit`.
+- Studio web app at `/app` (ADR-020): upload, brainstorm -> final prompt, Director chat with
+  live tool steps, plan card, results player + download, clickable subtitles, undo/redo.
+  Verified live on testInput.mp4: every requested item applied (split screen, banner, captions,
+  keyword visuals incl. the Claude logo, zooms, transitions, music + SFX, export).
 - Integrated the other session's work-in-progress (split-screen layout, procedural B-roll videos,
   headline cards, critic) and made it pass `make check`.
 - Gaps: logo tiles are personal-use until the owner decides (ADR-018); 7 curated clips unverified;

@@ -317,3 +317,29 @@ async def test_plan_edit_is_read_only_and_flags_bad_words() -> None:
     assert res.versions == [] and ws.render_calls == []
     result = next(e for e in events if e.type == "tool_result")
     assert "w99 does not exist" in str(result.data["result"])
+
+
+async def test_cap_still_delivers_requested_music_sfx_and_export(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from tests.unit.tools.test_executor import _catalog
+
+    ws = MemoryWorkspace(_timeline())
+    ws.catalog = _catalog(tmp_path)
+    # the model burns every step on one harmless edit and never gets to the rest
+    script = [_call("denoise", f"c{i}", enabled=True) for i in range(3)]
+    res, ws, _, _ = await _run(
+        script, ws, msg="add music, sound effects and transitions, then export", max_iters=3
+    )
+    assert res.stopped == "cap"
+    assert res.autofixed == ["add_music", "set_transition", "auto_sfx", "export"]
+    assert ws.timeline().music is not None and ws.timeline().transition == "zoom_in"
+    assert ws.render_calls == ["final"]  # the export doubles as this turn's preview
+
+
+async def test_model_cannot_waive_monetisation_on_its_own() -> None:
+    script = [_call("export", monetized=False), _done("Exported.")]
+    res, ws, _, _ = await _run(script, msg="wrap it up")
+    assert ws.render_calls == [] and "export (needs_consent)" in res.reply
+    res, ws, _, _ = await _run(
+        [_call("export", monetized=False), _done()], msg="Not monetised, export as is"
+    )
+    assert ws.render_calls == ["final"]

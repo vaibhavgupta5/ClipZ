@@ -560,6 +560,13 @@ def _insert_asset(tool: ToolDef, p: mvp.InsertAssetIn, state: ToolState) -> Tool
             "use an id returned by search_assets",
         )
     kind, item = found
+    shown = next((o for o in state.timeline.overlays if _library_id(o.asset) == item.id), None)
+    if shown is not None:
+        raise OpError(
+            "already_shown",
+            f"{item.id} is already on screen as {shown.id} (at {shown.anchor_word})",
+            "nothing to do, or remove_insert it first to move it",
+        )
     if kind == "meme":
         raise OpError(
             "use_insert_meme",
@@ -907,6 +914,60 @@ def _add_inserts(tool: ToolDef, p: mvp.AddInsertsIn, state: ToolState) -> ToolOu
     )
 
 
+PANEL_GAP_S = 2.5  # split screen: a top panel empty this long gets an on-topic visual
+TOPIC_MIN_SCORE = 2.5  # filler shots may be a little less specific than keyword shots
+
+
+def _fill_panel(
+    tl: Timeline, catalog: AssetCatalog, cues: list[Cue], placed: list[dict[str, str]]
+) -> Timeline:
+    """Split screen: fill top-panel gaps with the best unused visuals of the video's topic
+    (strongest cues said anywhere), anchored on the first word inside each gap."""
+    words: list[tuple[str, float]] = []
+    for w in tl.transcript.words:
+        try:
+            words.append((w.id, snap.output_time_of(tl, w.id, "start")))
+        except OpError:
+            continue
+    spare = sorted(cues, key=lambda c: -c.score)
+    # second tier: more shots for the video's own topic words (relaxed but still on-topic)
+    seen = {c.asset_id for c in spare}
+    for phrase in dict.fromkeys(c.phrase for c in spare):
+        for kind in ("video", "image"):
+            for score, item in catalog.match(kind, phrase):
+                if score >= TOPIC_MIN_SCORE and item.id not in seen:
+                    seen.add(item.id)
+                    spare.append(Cue("", "", phrase, kind, item.id, item.title, score, 0.0, 0.0))
+    t = 0.0
+    for _ in range(40):
+        windows = [(a, b) for a, b, _ in _windows(tl)]
+        gap_end = min((a for a, _ in windows if a >= t - EPS), default=tl.duration_s)
+        if gap_end - t >= PANEL_GAP_S:
+            used = {_library_id(o.asset) for o in tl.overlays}
+            anchor = next(((wid, at) for wid, at in words if t - EPS <= at < gap_end - 1.0), None)
+            cue = next((c for c in spare if c.asset_id not in used), None)
+            found = catalog.get(cue.asset_id) if cue else None
+            if anchor is not None and cue is not None and found is not None:
+                try:
+                    dur, _ = _place(tl, cue.kind, anchor[0], None, "split_top")
+                    over = _overlay(
+                        tl, cue.kind, cue.asset_id, found[1], anchor[0], dur, "split_top"
+                    )
+                    tl, _ = ops.add_overlay(tl, over)
+                    placed.append(
+                        {"at_word": anchor[0], "said": f"topic: {cue.phrase}", "kind": cue.kind,
+                         "title": found[1].title}
+                    )  # fmt: skip
+                    continue  # re-scan from the same point
+                except OpError:
+                    pass
+        later = [b for a, b in windows if a >= t - EPS]
+        if not later:
+            break
+        t = max(t + 0.5, min(later))
+    return tl
+
+
 def _plan_edit(tool: ToolDef, p: mvp.PlanEditIn, state: ToolState) -> ToolOutcome:
     """Accept the plan; flag moments whose word is unknown or already cut away."""
     tl = state.timeline
@@ -968,6 +1029,8 @@ def _auto_visuals(tool: ToolDef, p: mvp.AutoVisualsIn, state: ToolState) -> Tool
         placed.append(
             {"at_word": cue.word, "said": cue.phrase, "kind": cue.kind, "title": item.title}
         )
+    if split:
+        tl = _fill_panel(tl, catalog, cues, placed)
     if not placed:
         return ToolOutcome(
             tool,

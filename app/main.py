@@ -14,6 +14,7 @@ from app.api.health import router as health_router
 from app.api.media import router as media_router
 from app.api.metrics import router as metrics_router
 from app.api.renders import router as renders_router
+from app.api.studio import router as studio_router
 from app.api.timelines import router as timelines_router
 from app.api.uploads import router as uploads_router
 from app.db import get_db, migrate
@@ -67,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(media_router)
     app.include_router(chat_router)
     app.include_router(metrics_router)
+    app.include_router(studio_router)
     return app
 
 

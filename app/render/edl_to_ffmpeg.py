@@ -125,6 +125,12 @@ def _at(tl: Timeline, anchor_word: str, offset_ms: int = 0, where: str = "start"
         raise RenderError("dangling_anchor", f"overlay/zoom anchor lost: {exc}") from None
 
 
+def _drawn_last(window: tuple[Overlay, float, float]) -> bool:
+    """Banners and cards are drawn after inserts so inserts never hide them."""
+    overlay = window[0]
+    return overlay.type in ("headline_card", "stat_card") or overlay.layout == "top_banner"
+
+
 def build_video_filter(
     tl: Timeline,
     profile: RenderProfile,
@@ -186,7 +192,7 @@ def build_video_filter(
                 overlay_windows.append((overlay, *snap.overlay_window(tl, overlay)))
             except OpError as exc:
                 raise RenderError("dangling_anchor", f"overlay anchor lost: {exc}") from None
-    for overlay, at, end in overlay_windows:
+    for overlay, at, end in sorted(overlay_windows, key=_drawn_last):
         source = asset_labels.get(overlay.id) or asset_labels.get(overlay.asset)
         if source is None:
             raise RenderError("unknown_asset", f"no local file for overlay asset {overlay.asset}")

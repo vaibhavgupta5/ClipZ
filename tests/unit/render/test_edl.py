@@ -157,3 +157,17 @@ def test_encoder_selection_prefers_nvenc(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(compiler, "_nvenc_cached", None)
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: _Fail())
     assert select_video_encoder() == "libx264"
+
+
+def test_banners_are_drawn_over_inserts() -> None:
+    banner = Overlay(
+        id="hl1", type="headline_card", asset="hl", anchor_word="w1", offset_ms=0,
+        duration_ms=1500, layout="top_banner", license="own",
+    )  # fmt: skip
+    panel = Overlay(
+        id="ins2", type="image", asset="img", anchor_word="w1", offset_ms=0,
+        duration_ms=1000, layout="split_top", license="CC0-1.0",
+    )  # fmt: skip
+    tl = _timeline(reframe="split_bottom", overlays=[banner, panel])
+    script, _ = build_video_filter(tl, FINAL, asset_labels={"hl": "[1:v]", "img": "[2:v]"})
+    assert script.index("[2:v]") < script.index("[1:v]")  # banner composited last

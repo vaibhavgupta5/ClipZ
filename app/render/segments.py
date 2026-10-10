@@ -117,7 +117,7 @@ def _meme_windows(tl: Timeline) -> list[tuple[float, float]]:
 
 # Bump whenever render logic changes output for the same timeline slice, so cached
 # segments rendered by older code are never reused (e.g. the overlay-duration fix).
-RENDER_VERSION = "4"
+RENDER_VERSION = "5"
 
 
 def slice_hash(
