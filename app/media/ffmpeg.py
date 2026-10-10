@@ -39,3 +39,16 @@ def run_capture(args: list[str], timeout_s: int = FFMPEG_TIMEOUT_S) -> bytes:
     if proc.returncode != 0:
         raise MediaError("ffmpeg_failed", f"ffmpeg exit {proc.returncode}")
     return proc.stdout
+
+
+def run_get_stderr(args: list[str], timeout_s: int = FFMPEG_TIMEOUT_S) -> str:
+    """Run an arg list, expect success, return stderr text. Raises MediaError."""
+    if not args:
+        raise MediaError("bad_args", "empty ffmpeg arg list")
+    try:
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=timeout_s, check=False)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        raise MediaError("ffmpeg_failed", f"ffmpeg did not complete: {exc}") from None
+    if proc.returncode != 0:
+        raise MediaError("ffmpeg_failed", f"ffmpeg exit {proc.returncode}: {proc.stderr[-2000:]}")
+    return proc.stderr

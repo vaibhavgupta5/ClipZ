@@ -1,14 +1,9 @@
 """Timeline CRUD API integration tests against the compose stack. Opt-in."""
 
-import uuid
-
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete, select
 
 from app.main import create_app
-from app.models import Project, TimelineVersion, User
-from app.models import Timeline as TimelineRow
 
 pytestmark = pytest.mark.integration
 
@@ -30,24 +25,10 @@ async def _client() -> AsyncClient:
 
 
 async def _cleanup(project_id: str) -> None:
-    import hashlib
+    from tests.integration.cleanup import cleanup_user
 
-    from app.db import create_engine
-    from app.settings import get_settings
-
-    digest = hashlib.sha256(API_KEY.encode()).hexdigest()
-    engine = create_engine(get_settings())
-    try:
-        async with engine.begin() as conn:
-            tids = select(TimelineRow.id).where(TimelineRow.project_id == uuid.UUID(project_id))
-            await conn.execute(delete(TimelineVersion).where(TimelineVersion.timeline_id.in_(tids)))
-            await conn.execute(
-                delete(TimelineRow).where(TimelineRow.project_id == uuid.UUID(project_id))
-            )
-            await conn.execute(delete(Project).where(Project.id == uuid.UUID(project_id)))
-            await conn.execute(delete(User).where(User.api_key_hash == digest))
-    finally:
-        await engine.dispose()
+    _ = project_id
+    await cleanup_user(API_KEY)
 
 
 async def test_project_lifecycle_ops_undo_redo() -> None:

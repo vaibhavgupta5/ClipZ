@@ -69,3 +69,11 @@ ffmpeg -hide_banner -loglevel error -y \
   -t 5 "$OUT/mono_5s.mp4"
 
 echo "[fixtures] done: $(ls "$OUT"/*.mp4 | wc -l) files total"
+
+for spec in "red:card_red" "blue:card_blue" "green:card_green"; do
+  color="${spec%%:*}"; name="${spec##*:}"
+  ffmpeg -hide_banner -loglevel error -y \
+    -f lavfi -i "color=c=$color:s=1080x1920:d=1" \
+    -frames:v 1 "$OUT/$name.png"
+done
+echo "[fixtures] overlay cards: $(ls "$OUT"/*.png | wc -l) files"

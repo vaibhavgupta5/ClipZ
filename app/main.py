@@ -5,8 +5,11 @@ import uuid
 from fastapi import FastAPI, Request
 from structlog import contextvars
 
+from app.api.analysis import router as analysis_router
 from app.api.health import router as health_router
+from app.api.renders import router as renders_router
 from app.api.timelines import router as timelines_router
+from app.api.uploads import router as uploads_router
 from app.logging_setup import get_logger, setup_logging
 from app.settings import Settings, get_settings
 
@@ -33,6 +36,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(timelines_router)
+    app.include_router(uploads_router)
+    app.include_router(analysis_router)
+    app.include_router(renders_router)
     return app
 
 

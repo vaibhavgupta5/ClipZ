@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     S3_ENDPOINT: str = Field(
         default="http://localhost:9000", description="S3-compatible endpoint (MinIO local)"
     )
+    S3_PUBLIC_ENDPOINT: str = Field(
+        default="http://localhost:9000",
+        description="Public endpoint embedded in presigned URLs (host-mapped port in compose)",
+    )
     S3_BUCKET: str = Field(default="reelforge", description="Object-storage bucket")
     S3_ACCESS_KEY: str = Field(default="minioadmin", description="Object-storage access key")
     S3_SECRET_KEY: str = Field(

@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,16 @@ from app.models import Project
 from app.models import Timeline as TimelineRow
 from app.timeline import ops as timeline_ops
 from app.timeline.errors import OpError, TimelineInvalid
-from app.timeline.schema import CaptionConfig, Diff, MusicBed, Overlay, SfxHit, Timeline, Zoom
+from app.timeline.schema import (
+    CaptionConfig,
+    Diff,
+    MusicBed,
+    Overlay,
+    SfxHit,
+    Timeline,
+    VideoClip,
+    Zoom,
+)
 from app.timeline.summary import summarize
 from app.timeline.transcript import Transcript
 from app.timeline.validate import ensure_valid
@@ -125,14 +134,14 @@ OpRequest = Annotated[
 
 
 class CreateProjectRequest(BaseModel):
-    """Create a project with its initial transcript + one full-length clip."""
+    """Create a project: timeline v1 now with transcript, else on analysis."""
 
     name: str = Field(default="Untitled reel", max_length=200)
     language: str = Field(default="auto")
     caption_script: str = Field(default="devanagari")
-    transcript: Transcript
-    source_asset: str = Field(min_length=1, description="Raw asset ID for clip c1")
-    source_duration_s: float = Field(gt=0, le=90, description="Source seconds (<= 90 s cap)")
+    transcript: Transcript | None = Field(default=None, description="Optional initial transcript")
+    source_asset: str | None = Field(default=None, description="Raw asset ID for clip c1")
+    source_duration_s: float | None = Field(default=None, gt=0, le=90)
 
 
 def _apply(tl: Timeline, op: OpRequest) -> tuple[Timeline, Diff]:
@@ -182,14 +191,19 @@ async def create_project(
     session: SessionDep,
     user_id: UserDep,
 ) -> dict[str, object]:
-    """Create project + timeline v1 (single clip over the source)."""
-    from app.timeline.schema import VideoClip
-
+    """Create project; timeline v1 now when a transcript is supplied, else on analysis."""
     project = Project(
         name=body.name, user_id=user_id, language=body.language, caption_script=body.caption_script
     )
     session.add(project)
     await session.flush()
+    if body.transcript is None:
+        await session.commit()
+        return {"project_id": str(project.id), "timeline_id": None, "timeline": None}
+    if body.source_asset is None or body.source_duration_s is None:
+        raise HTTPException(
+            status_code=422, detail="source_asset and source_duration_s required with transcript"
+        )
     tl = Timeline(
         project_id=project.id,
         transcript=body.transcript,
@@ -218,7 +232,7 @@ async def get_timeline(
 ) -> dict[str, object]:
     """Current EDL + summary."""
     project = await owned_project(session, user_id, project_id)
-    row = await _timeline_row(session, project)
+    row = await _require_timeline(session, project)
     version = await get_current(session, row.id)
     tl = await load_version(session, row.id, version)
     return {
@@ -237,7 +251,7 @@ async def apply_op(
 ) -> JSONResponse:
     """Apply one op: validate, persist new version, return EDL + diff."""
     project = await owned_project(session, user_id, project_id)
-    row = await _timeline_row(session, project)
+    row = await _require_timeline(session, project)
     version = await get_current(session, row.id)
     tl = await load_version(session, row.id, version)
     try:
@@ -265,7 +279,7 @@ async def list_timeline_versions(
 ) -> dict[str, object]:
     """All versions with parent links."""
     project = await owned_project(session, user_id, project_id)
-    row = await _timeline_row(session, project)
+    row = await _require_timeline(session, project)
     entries = await list_versions(session, row.id)
     return {
         "versions": [{"version": e.version, "parent": e.parent} for e in entries],
@@ -281,7 +295,7 @@ async def undo(
 ) -> dict[str, object]:
     """Pointer back one version."""
     project = await owned_project(session, user_id, project_id)
-    row = await _timeline_row(session, project)
+    row = await _require_timeline(session, project)
     version = max(1, await get_current(session, row.id) - 1)
     await set_current(session, row.id, version)
     await session.commit()
@@ -297,7 +311,7 @@ async def redo(
 ) -> dict[str, object]:
     """Pointer forward along the linear chain (no-op past a branch)."""
     project = await owned_project(session, user_id, project_id)
-    row = await _timeline_row(session, project)
+    row = await _require_timeline(session, project)
     current = await get_current(session, row.id)
     entries = await list_versions(session, row.id)
     nxt = next(
@@ -311,12 +325,18 @@ async def redo(
     return {"project_id": str(project.id), **_timeline_response(tl, version)}
 
 
-async def _timeline_row(session: AsyncSession, project: Project) -> TimelineRow:
+async def _timeline_row(session: AsyncSession, project: Project) -> TimelineRow | None:
     from sqlalchemy import select
 
-    row = await session.scalar(select(TimelineRow).where(TimelineRow.project_id == project.id))
+    return await session.scalar(select(TimelineRow).where(TimelineRow.project_id == project.id))
+
+
+async def _require_timeline(session: AsyncSession, project: Project) -> TimelineRow:
+    from fastapi import HTTPException
+
+    row = await _timeline_row(session, project)
     if row is None:
-        raise RuntimeError(f"project {project.id} has no timeline row")
+        raise HTTPException(status_code=404, detail="timeline not ready (analysis pending)")
     return row
 
 

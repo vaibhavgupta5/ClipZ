@@ -157,3 +157,23 @@ class Render(Base):
     output_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     attributions: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
     created_at: Mapped[datetime] = _created_at()
+
+
+class Analysis(Base):
+    """Cached AnalysisBundle pointer: content-hash keyed, shared across projects."""
+
+    __tablename__ = "analyses"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_sha", "analyzer", "version", "params_hash", name="uq_analysis_bundle"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    source_sha: Mapped[str] = mapped_column(String(64), nullable=False)
+    analyzer: Mapped[str] = mapped_column(String(32), nullable=False)
+    version: Mapped[str] = mapped_column(String(32), nullable=False)
+    params_hash: Mapped[str] = mapped_column(String(12), nullable=False)
+    bundle_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    created_at: Mapped[datetime] = _created_at()

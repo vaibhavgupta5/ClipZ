@@ -5,11 +5,10 @@ import uuid
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete
 
 from app.db import create_engine, session_factory
 from app.main import create_app
-from app.models import Asset, Job, Project, User
+from app.models import Job, Project, User
 from app.settings import get_settings
 
 pytestmark = pytest.mark.integration
@@ -47,27 +46,10 @@ async def _make_project(client: AsyncClient) -> str:
 
 
 async def _cleanup(project_id: str, api_key: str) -> None:
-    digest = hashlib.sha256(api_key.encode()).hexdigest()
-    engine = create_engine(get_settings())
-    try:
-        async with engine.begin() as conn:
-            from sqlalchemy import select
+    from tests.integration.cleanup import cleanup_user
 
-            from app.models import Message, Render, TimelineVersion
-            from app.models import Timeline as TimelineRow
-
-            pid = uuid.UUID(project_id)
-            tids = select(TimelineRow.id).where(TimelineRow.project_id == pid)
-            await conn.execute(delete(Render).where(Render.project_id == pid))
-            await conn.execute(delete(Message).where(Message.project_id == pid))
-            await conn.execute(delete(TimelineVersion).where(TimelineVersion.timeline_id.in_(tids)))
-            await conn.execute(delete(TimelineRow).where(TimelineRow.id.in_(tids)))
-            await conn.execute(delete(Job).where(Job.project_id == pid))
-            await conn.execute(delete(Asset).where(Asset.project_id == pid))
-            await conn.execute(delete(Project).where(Project.id == pid))
-            await conn.execute(delete(User).where(User.api_key_hash == digest))
-    finally:
-        await engine.dispose()
+    _ = project_id
+    await cleanup_user(api_key)
 
 
 async def test_upload_complete_starts_ingest_job() -> None:

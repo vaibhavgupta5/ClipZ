@@ -12,6 +12,18 @@
 - 100% line coverage on app/timeline; hypothesis properties green; CRUD API with 422 actionable errors.
 - Gate: docs/gates/PHASE-1.md. Gaps: transcripts client-supplied until Phase 3; asset IDs opaque until Phase 2.
 
-## Phase 2: Ingest (next)
+## Phase 2: Ingest (DONE — gate GO)
+- Presigned upload + complete + arq ingest worker + SSE progress; end-to-end verified vs compose.
+- Normalization (CFR/SDR/rotation/48k stereo), 540p proxy (0.5 s GOP), 16 kHz ASR audio, waveform JSON.
+- Fixture matrix green (VFR/silent/mono/91s-reject/corrupt); SSRF hardening (container allowlist + protocol whitelist).
+- Gate: docs/gates/PHASE-2.md. Gaps: HDR fixture + rotation-metadata fixture need real phone clips.
+
+## Phase 3: Analysis (DONE — gate GO)
+- Bundle models/protocols/fakes; real VAD/scenes/energy/fillers; LLM beats/romanize/emphasis (strict JSON+retry).
+- Lazy whisper/silero/mediapipe adapters (deps deferred to GPU track); content-hash cache (zero-call second run proven).
+- analyze_asset worker + analysis/transcript endpoints; transcript-free project creation.
+- Gate: docs/gates/PHASE-3.md. Gaps: real ASR untested (no speech fixtures/keys); faces empty until Phase 9.
+
+## Phase 4: Renderer (next)
 
 ## Phases 1-10: not started

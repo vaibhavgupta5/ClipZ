@@ -63,9 +63,13 @@ ignore = ["S101"]
 "tests/**" = ["S106", "S108"]
 # Integration tests invoke fixed ffmpeg/ffprobe arg lists (never shell, no variables in argv[0]).
 "tests/integration/test_ingest.py" = ["S603", "S607"]
+"tests/integration/test_render.py" = ["S603", "S607"]
+"tests/golden/test_render.py" = ["S603", "S607", "ASYNC240", "ASYNC221"]
 # Vetted subprocess modules: arg lists only, never shell (enforced by tests/unit/test_no_shell.py).
 "app/media/ffmpeg.py" = ["S603", "S607"]
 "app/media/probe.py" = ["S603", "S607"]
+"app/render/edl_to_ffmpeg.py" = ["S603", "S607"]
+"app/render/render.py" = ["S603", "S607"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -73,5 +77,5 @@ strict = true
 show_error_codes = true
 warn_unused_configs = true
 [[tool.mypy.overrides]]
-module = ["arq.*", "boto3.*", "botocore.*"]
+module = ["arq.*", "boto3.*", "botocore.*", "torch.*", "faster_whisper.*", "mediapipe.*", "cv2.*", "librosa.*"]
 ignore_missing_imports = true
