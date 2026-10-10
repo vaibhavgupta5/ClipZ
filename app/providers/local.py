@@ -48,6 +48,7 @@ class LibraryItem(BaseModel):
     width: int = 0
     height: int = 0
     text_boxes: int = 2
+    alpha: bool = False  # transparent sticker (overlay without a box)
 
 
 def asset_url(library: str, file: str) -> str:
@@ -283,3 +284,71 @@ def _draw_meme(src: Path, dest: Path, top: str, bottom: str) -> None:
             anchor="mt" if at_top else "mb",
         )
     img.save(dest, "PNG")
+
+
+LIBRARIES = ("images", "gifs", "memes", "music")
+
+
+def resolve_asset_file(assets_root: str | Path, meme_dir: str | Path, asset_id: str) -> Path | None:
+    """File for a library asset id (``images:<id>`` ...) or a rendered meme
+    (``memes:<template>:<digest>``); None when it is not a library asset."""
+    lib_name = asset_id.split(":", 1)[0]
+    if lib_name not in LIBRARIES:
+        return None
+    if lib_name == "memes" and asset_id.count(":") == 2:
+        digest = asset_id.rsplit(":", 1)[1]
+        if not re.fullmatch(r"[0-9a-f]{16}", digest):
+            return None
+        path = Path(meme_dir) / f"{digest}.png"
+        return path if path.is_file() else None
+    lib = Library(assets_root, lib_name)
+    item = next((i for i in lib.items if i.id == asset_id), None)
+    return lib.path(item) if item else None
+
+
+class AssetCatalog:
+    """Synchronous facade over the local libraries for the tool executor."""
+
+    KINDS = {"image": "images", "gif": "gifs", "meme": "memes", "music": "music"}
+
+    def __init__(self, assets_root: str | Path, meme_dir: str | Path) -> None:
+        self.root = Path(assets_root)
+        self.meme_dir = Path(meme_dir)
+        self._libs = {k: Library(self.root, v) for k, v in self.KINDS.items()}
+
+    def search(self, kind: str, query: str, limit: int) -> list[LibraryItem]:
+        """Best matches in one library (kind: image | gif | meme)."""
+        return self._libs[kind].search(query, limit)
+
+    def music(self, genre: str | None, mood: str, min_s: float) -> list[LibraryItem]:
+        """Tracks in a genre (or all), mood-ranked, long-enough first."""
+        lib = self._libs["music"]
+        where = {"genre": genre} if genre else None
+        items = lib.search(mood, 20, where=where) if (mood or where) else list(lib.items)
+        return sorted(items, key=lambda i: i.duration_s < min_s)
+
+    def genres(self) -> list[str]:
+        """Music genre labels available."""
+        return sorted({i.genre for i in self._libs["music"].items if i.genre})
+
+    def get(self, asset_id: str) -> tuple[str, LibraryItem] | None:
+        """(kind, item) for a library asset id."""
+        for kind, lib in self._libs.items():
+            item = next((i for i in lib.items if i.id == asset_id), None)
+            if item is not None:
+                return kind, item
+        return None
+
+    def render_meme(self, template_id: str, top: str, bottom: str) -> tuple[str, LibraryItem]:
+        """Caption a template; returns (rendered asset id, template item)."""
+        found = self.get(template_id)
+        if found is None or found[0] != "meme":
+            raise KeyError(f"unknown meme template {template_id!r}")
+        item = found[1]
+        top_c, bottom_c = _clean(top), _clean(bottom)
+        digest = hashlib.sha256(f"{template_id}\x00{top_c}\x00{bottom_c}".encode()).hexdigest()[:16]
+        out = self.meme_dir / f"{digest}.png"
+        if not out.exists():
+            out.parent.mkdir(parents=True, exist_ok=True)
+            _draw_meme(self._libs["meme"].path(item), out, top_c, bottom_c)
+        return f"{template_id}:{digest}", item

@@ -15,11 +15,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from pymongo.errors import DuplicateKeyError
 from sse_starlette.sse import EventSourceResponse
 
 from app import db as db_ops
 from app.api.deps import DbDep, UserDep, owned_project
+from app.db import DuplicateKeyError
 from app.models import Job
 from app.settings import get_settings
 from app.storage import get_storage

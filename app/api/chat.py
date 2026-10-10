@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app import db as db_ops
+from app import telemetry
 from app.agent.context import project_data, system_prompt
 from app.agent.director import Event, run_director
 from app.agent.runs import log_run
@@ -79,7 +80,10 @@ async def _follow_renders(
                 continue
             if render.status == "done":
                 kind: Any = "preview_ready" if render.profile == "preview" else "render_ready"
-                queue.put_nowait(Event(kind, {"render_id": str(rid), "url": render.output_url}))
+                data: dict[str, object] = {"render_id": str(rid), "url": render.output_url}
+                if render.attributions:
+                    data["credits"] = render.attributions  # paste into the post caption
+                queue.put_nowait(Event(kind, data))
                 pending.discard(rid)
             elif render.status == "failed":
                 queue.put_nowait(Event("render_failed", {"render_id": str(rid)}))
@@ -127,9 +131,13 @@ async def post_message(
         started = time.monotonic()
         first_token: list[int] = []
 
+        tool_events: list[dict[str, Any]] = []
+
         def emit(event: Event) -> None:
             if event.type == "token" and not first_token:
                 first_token.append(int((time.monotonic() - started) * 1000))
+            if event.type == "tool_result":
+                tool_events.append(event.data)
             queue.put_nowait(event)
 
         try:
@@ -143,7 +151,7 @@ async def post_message(
                     tool_calls=[{"name": t} for t in result.tools],
                 ),
             )
-            await log_run(
+            run = await log_run(
                 db,
                 project.id,
                 system,
@@ -151,6 +159,16 @@ async def post_message(
                 latency_ms=int((time.monotonic() - started) * 1000),
                 first_token_ms=first_token[0] if first_token else None,
             )
+            for ev in tool_events:
+                await telemetry.tool_call(
+                    db,
+                    project.id,
+                    run.id if run else None,
+                    str(ev.get("name")),
+                    bool(ev.get("ok")),
+                    int(ev.get("ms", 0)),
+                    None if ev.get("ok") else str(ev.get("code", "error")),
+                )
             await _follow_renders(db, result.renders, queue)
         except ProviderUnavailable as exc:
             queue.put_nowait(Event("error", {"message": str(exc)}))

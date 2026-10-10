@@ -172,4 +172,5 @@ LAYOUTS = ["cutaway_full", "pip_pop", "split_top", "lower_third_card", "blur_bg_
 
 @pytest.mark.parametrize("layout", LAYOUTS)
 async def test_golden_overlay_layouts(layout: str) -> None:
-    await _render_frame(_base_tl(layout=layout), _cards(), 1.0, f"overlay_{layout}.png")
+    # mid-window: the insert is fully faded in (word w2 ends at 0.9 s, shown 0.9-2.4 s)
+    await _render_frame(_base_tl(layout=layout), _cards(), 1.5, f"overlay_{layout}.png")

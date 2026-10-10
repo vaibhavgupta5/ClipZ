@@ -19,8 +19,12 @@ class FillerFinder:
     VERSION = "list-1"
 
     def __init__(self, language: str = "en") -> None:
-        self.language = language if language in ("en", "hi") else "en"
-        self.phrases = self._load(self.language)
+        self.language = language if language in ("en", "hi", "hinglish") else "en"
+        if self.language == "hinglish":  # Roman-script code-mixing: both lists apply
+            merged = set(self._load("en")) | set(self._load("hi"))
+            self.phrases = sorted(merged, key=len, reverse=True)
+        else:
+            self.phrases = self._load(self.language)
 
     @staticmethod
     def _load(language: str) -> list[tuple[str, ...]]:

@@ -5,10 +5,9 @@ import uuid
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException
-from pymongo.errors import DuplicateKeyError
 
 from app import db as db_ops
-from app.db import Database
+from app.db import Database, DuplicateKeyError
 from app.models import Project, User
 
 

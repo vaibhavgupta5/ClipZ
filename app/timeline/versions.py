@@ -9,10 +9,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from pymongo.errors import DuplicateKeyError
-
 from app import db as db_ops
-from app.db import Database
+from app.db import Database, DuplicateKeyError
 from app.models import Timeline as TimelineDoc
 from app.models import TimelineVersion as TimelineVersionDoc
 from app.timeline.schema import Timeline

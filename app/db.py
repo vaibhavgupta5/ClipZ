@@ -1,82 +1,132 @@
-"""MongoDB access (PyMongo native async). One client per event loop.
+"""Tiger Data (PostgreSQL + TimescaleDB) access via asyncpg (ADR-016).
 
-Typed helpers map collections to the pydantic documents in app/models.py so the
-rest of the code never touches raw dicts.
+Typed helpers map tables to the pydantic models in app/models.py, so routes and
+workers never write SQL by hand. Filters are equality only, and every column name
+is checked against the model before it reaches SQL; values are always bound
+parameters. Schema lives in app/sql/*.sql, applied in order by ``migrate``.
 """
 
 import asyncio
+import json
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
-from bson.codec_options import CodecOptions
-from pymongo import ASCENDING, DESCENDING, AsyncMongoClient
-from pymongo.asynchronous.collection import AsyncCollection
-from pymongo.asynchronous.database import AsyncDatabase
+import asyncpg
 
-from app.models import (
-    AgentRun,
-    Analysis,
-    Asset,
-    Doc,
-    Job,
-    Message,
-    Project,
-    Render,
-    Timeline,
-    TimelineVersion,
-    User,
-)
+from app.models import Doc
 from app.settings import Settings, get_settings
 
-Database = AsyncDatabase[dict[str, Any]]
-
-_clients: dict[tuple[int, str], AsyncMongoClient[dict[str, Any]]] = {}
+SQL_DIR = Path(__file__).parent / "sql"
 
 
-def client_for(settings: Settings) -> AsyncMongoClient[dict[str, Any]]:
-    """Client bound to the running event loop (AsyncMongoClient is loop-affine)."""
-    key = (id(asyncio.get_running_loop()), settings.MONGODB_URL)
-    client = _clients.get(key)
-    if client is None:
-        client = AsyncMongoClient(
-            settings.MONGODB_URL,
-            uuidRepresentation="standard",
-            tz_aware=True,
-            serverSelectionTimeoutMS=5000,  # fail fast (readyz, workers) instead of 30 s
-        )
-        _clients[key] = client
-    return client
+class DuplicateKeyError(Exception):
+    """A unique constraint rejected the write (idempotency keys, version numbers...)."""
+
+
+async def _init_conn(conn: asyncpg.Connection) -> None:
+    for typ in ("jsonb", "json"):
+        await conn.set_type_codec(typ, encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
+
+
+class Database:
+    """Lazy asyncpg pool bound to one event loop (pools are loop-affine)."""
+
+    def __init__(self, dsn: str, schema: str) -> None:
+        self.dsn = dsn
+        self.schema = schema
+        self._pool: asyncpg.Pool | None = None
+
+    async def pool(self) -> asyncpg.Pool:
+        """Create the pool on first use."""
+        if self._pool is None:
+            self._pool = await asyncpg.create_pool(
+                self.dsn,
+                min_size=1,
+                max_size=10,
+                timeout=5,
+                command_timeout=30,
+                init=_init_conn,
+                server_settings={"search_path": f"{self.schema},public"},
+            )
+        return self._pool
+
+    async def execute(self, sql: str, *args: Any) -> str:
+        """Run one statement."""
+        pool = await self.pool()
+        try:
+            return str(await pool.execute(sql, *args))
+        except asyncpg.UniqueViolationError as exc:
+            raise DuplicateKeyError(str(exc)) from None
+
+    async def fetch(self, sql: str, *args: Any) -> list[asyncpg.Record]:
+        """Rows for a query."""
+        return list(await (await self.pool()).fetch(sql, *args))
+
+    async def close(self) -> None:
+        """Close the pool."""
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None
+
+
+_dbs: dict[tuple[int, str, str], Database] = {}
 
 
 def get_db(settings: Settings | None = None) -> Database:
-    """Database handle for the current loop."""
+    """Database handle for the running event loop."""
     settings = settings or get_settings()
-    return client_for(settings).get_database(
-        settings.MONGODB_DB, codec_options=CodecOptions(uuid_representation=4, tz_aware=True)
+    key = (id(asyncio.get_running_loop()), settings.TIGER_DATABASE_URL, settings.TIGER_SCHEMA)
+    db = _dbs.get(key)
+    if db is None:
+        db = Database(settings.TIGER_DATABASE_URL, settings.TIGER_SCHEMA)
+        _dbs[key] = db
+    return db
+
+
+# --- typed document helpers ---------------------------------------------------------
+def _col(model: type[Doc], field: str) -> str:
+    name = "id" if field == "_id" else field
+    if name not in model.model_fields:
+        raise ValueError(f"{model.__name__} has no column {field!r}")
+    return f'"{name}"'
+
+
+def _where(model: type[Doc], query: Mapping[str, Any]) -> tuple[str, list[Any]]:
+    parts: list[str] = []
+    args: list[Any] = []
+    for field, value in query.items():
+        if value is None:
+            parts.append(f"{_col(model, field)} IS NULL")
+        else:
+            args.append(value)
+            parts.append(f"{_col(model, field)} = ${len(args)}")
+    return (" WHERE " + " AND ".join(parts)) if parts else "", args
+
+
+def _order(model: type[Doc], sort: list[tuple[str, int]] | None) -> str:
+    if not sort:
+        return ""
+    return " ORDER BY " + ", ".join(
+        f"{_col(model, f)} {'DESC' if d < 0 else 'ASC'}" for f, d in sort
     )
 
 
-def coll(db: Database, model: type[Doc]) -> AsyncCollection[dict[str, Any]]:
-    """Collection for a document class."""
-    return db[model.collection]
-
-
 async def insert[D: Doc](db: Database, doc: D) -> D:
-    """Insert one document."""
-    await coll(db, type(doc)).insert_one(doc.to_mongo())
-    return doc
-
-
-async def save[D: Doc](db: Database, doc: D) -> D:
-    """Upsert the whole document by id."""
-    await coll(db, type(doc)).replace_one({"_id": doc.id}, doc.to_mongo(), upsert=True)
+    """Insert one row."""
+    data = doc.model_dump()
+    cols = ", ".join(f'"{c}"' for c in data)
+    params = ", ".join(f"${i}" for i in range(1, len(data) + 1))
+    await db.execute(
+        f'INSERT INTO "{doc.collection}" ({cols}) VALUES ({params})',  # noqa: S608 - model names
+        *data.values(),
+    )
     return doc
 
 
 async def get[D: Doc](db: Database, model: type[D], doc_id: Any) -> D | None:
     """Fetch by id."""
-    raw = await coll(db, model).find_one({"_id": doc_id})
-    return model.model_validate(raw) if raw else None
+    return await find_one(db, model, {"_id": doc_id})
 
 
 async def find_one[D: Doc](
@@ -86,8 +136,8 @@ async def find_one[D: Doc](
     sort: list[tuple[str, int]] | None = None,
 ) -> D | None:
     """First match (optionally sorted)."""
-    raw = await coll(db, model).find_one(dict(query), sort=sort)
-    return model.model_validate(raw) if raw else None
+    rows = await find(db, model, query, sort=sort, limit=1)
+    return rows[0] if rows else None
 
 
 async def find[D: Doc](
@@ -98,41 +148,57 @@ async def find[D: Doc](
     limit: int = 0,
 ) -> list[D]:
     """All matches."""
-    cursor = coll(db, model).find(dict(query), sort=sort, limit=limit)
-    return [model.model_validate(raw) async for raw in cursor]
+    where, args = _where(model, query)
+    sql = f'SELECT * FROM "{model.collection}"{where}{_order(model, sort)}'  # noqa: S608
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+    return [model.model_validate(dict(r)) for r in await db.fetch(sql, *args)]
 
 
 async def update(db: Database, model: type[Doc], doc_id: Any, fields: Mapping[str, Any]) -> None:
-    """$set fields on one document."""
-    await coll(db, model).update_one({"_id": doc_id}, {"$set": dict(fields)})
+    """Set columns on one row."""
+    if not fields:
+        return
+    sets = ", ".join(f"{_col(model, f)} = ${i}" for i, f in enumerate(fields, start=2))
+    await db.execute(
+        f'UPDATE "{model.collection}" SET {sets} WHERE "id" = $1',  # noqa: S608
+        doc_id,
+        *fields.values(),
+    )
 
 
-async def ensure_indexes(db: Database) -> None:
-    """Unique + lookup indexes (idempotent; run at API/worker startup)."""
-    await coll(db, User).create_index("api_key_hash", unique=True)
-    await coll(db, Project).create_index("user_id")
-    await coll(db, Asset).create_index([("project_id", ASCENDING), ("kind", ASCENDING)])
-    await coll(db, Timeline).create_index("project_id", unique=True)
-    await coll(db, TimelineVersion).create_index(
-        [("timeline_id", ASCENDING), ("version", ASCENDING)], unique=True
-    )
-    await coll(db, Message).create_index([("project_id", ASCENDING), ("created_at", ASCENDING)])
-    await coll(db, Job).create_index("idempotency_key", unique=True)
-    await coll(db, Render).create_index("project_id")
-    await coll(db, Analysis).create_index(
-        [
-            ("source_sha", ASCENDING),
-            ("analyzer", ASCENDING),
-            ("version", ASCENDING),
-            ("params_hash", ASCENDING),
-        ],
-        unique=True,
-    )
-    await coll(db, Analysis).create_index([("project_id", ASCENDING), ("created_at", DESCENDING)])
-    await coll(db, AgentRun).create_index("project_id")
+async def migrate(db: Database) -> list[str]:
+    """Apply app/sql/NNN_*.sql once each, in order, under an advisory lock."""
+    pool = await db.pool()
+    applied: list[str] = []
+    async with pool.acquire() as conn:
+        await conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{db.schema}"')
+        await conn.execute("SELECT pg_advisory_lock(727)")
+        try:
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS schema_migrations "
+                "(name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
+            )
+            done = {r["name"] for r in await conn.fetch("SELECT name FROM schema_migrations")}
+            for path in sorted(SQL_DIR.glob("*.sql")):
+                if path.name in done:
+                    continue
+                async with conn.transaction():
+                    await conn.execute(path.read_text(encoding="utf-8"))
+                    await conn.execute(
+                        "INSERT INTO schema_migrations (name) VALUES ($1)", path.name
+                    )
+                applied.append(path.name)
+        finally:
+            await conn.execute("SELECT pg_advisory_unlock(727)")
+    return applied
 
 
 async def check_connectivity(settings: Settings) -> str:
-    """Ping the server; return 'ok' or raise."""
-    await client_for(settings).admin.command("ping")
+    """SELECT 1; return 'ok' or raise."""
+    conn = await asyncpg.connect(settings.TIGER_DATABASE_URL, timeout=5)
+    try:
+        await conn.fetchval("SELECT 1")
+    finally:
+        await conn.close()
     return "ok"

@@ -129,3 +129,19 @@ async def test_full_analysis_flow_with_cache_and_endpoints() -> None:
         )
         assert r2["status"] == "done" and r2["reused"] is True
         assert stages2["transcriber"].calls == 0
+
+        # a second project with the same bytes reuses the bundle AND gets it linked
+        other = (await client.post("/projects", json={"name": "same-bytes"})).json()["project_id"]
+        store.put_bytes(f"projects/{other}/master.mp4", data, "video/mp4")
+        store.put_bytes(f"projects/{other}/asr.wav", data, "video/mp4")
+        r3 = await analyze_asset(
+            {"settings": get_settings()},
+            job_id=await _job(other),
+            project_id=other,
+            source_sha=source_sha,
+            prefix=f"projects/{other}",
+            stages=_stages(),
+        )
+        assert r3["reused"] is True
+        linked = await client.get(f"/projects/{other}/analysis")
+        assert linked.status_code == 200 and linked.json()["bundle"]["language"] == "en"

@@ -71,7 +71,7 @@ async def test_readyz_uses_real_checkers_by_default(monkeypatch: pytest.MonkeyPa
     from app.settings import Settings
 
     dead = Settings(
-        MONGODB_URL="mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=500",
+        TIGER_DATABASE_URL="postgresql://x:y@127.0.0.1:1/none",
         REDIS_URL="redis://127.0.0.1:1/0",
         UPLOAD_DIR="/proc/reelforge-not-writable",
     )

@@ -48,6 +48,8 @@ ALLOWED_HOSTS = {
     "farm9.staticflickr.com",
     "cdn.freesound.org",
     "prod-1.storage.jamendo.com",
+    "googlefonts.github.io",
+    "fonts.gstatic.com",
 }
 # On top of Openverse's mature=false: titles/tags containing these are never imported.
 BLOCKLIST = {
@@ -89,6 +91,48 @@ def is_blocked(*texts: str) -> bool:
 
 MAX_BYTES = {"music": 25_000_000, "images": 15_000_000, "gifs": 15_000_000, "memes": 5_000_000}
 CONTENT_PREFIX = {"music": "audio/", "images": "image/", "gifs": "image/gif", "memes": "image/"}
+
+# Noto animated emoji (Google, CC BY 4.0): transparent reaction stickers.
+NOTO_CATALOG = "https://googlefonts.github.io/noto-emoji-animation/data/api.json"
+NOTO_GIF = "https://fonts.gstatic.com/s/e/notoemoji/latest/{code}/512.gif"
+NOTO_LICENSE_URL = "https://creativecommons.org/licenses/by/4.0/"
+NOTO_SOURCE = "https://googlefonts.github.io/noto-emoji-animation/"
+NOTO_REACTIONS: dict[str, list[str]] = {
+    "1f602": ["laugh", "lol", "funny", "joke"],
+    "1f923": ["rofl", "laugh", "funny"],
+    "1f631": ["shocked", "scream", "omg", "wow"],
+    "1f92f": ["mind blown", "shocked", "wow", "insane"],
+    "1f525": ["fire", "hot", "lit", "hype"],
+    "1f44f": ["clap", "applause", "bravo"],
+    "1f480": ["dead", "skull", "dying laughing"],
+    "1f973": ["party", "celebrate", "celebration"],
+    "1f62d": ["crying", "sad", "tears"],
+    "1f60d": ["love", "heart eyes", "amazing"],
+    "1f914": ["thinking", "hmm", "question"],
+    "1f60e": ["cool", "sunglasses", "confident"],
+    "1f644": ["eye roll", "annoyed", "sarcastic"],
+    "1f62c": ["awkward", "cringe", "grimace"],
+    "1f921": ["clown", "fool", "joke"],
+    "1f4af": ["hundred", "perfect", "agree"],
+    "1f680": ["rocket", "launch", "growth", "to the moon"],
+    "1f4b8": ["money", "cash", "spending", "expensive"],
+    "1f389": ["confetti", "celebrate", "congrats"],
+    "1f440": ["eyes", "look", "watching", "suspicious"],
+    "1f62e": ["surprised", "wow", "oh"],
+    "1fae0": ["melting", "embarrassed", "awkward"],
+    "1f633": ["flushed", "shocked", "embarrassed"],
+    "1f972": ["smile tear", "bittersweet", "proud"],
+    "1f621": ["angry", "mad", "rage"],
+    "1f911": ["money face", "rich", "profit", "money"],
+    "1f44d": ["thumbs up", "ok", "approve", "like"],
+    "1f64f": ["please", "thanks", "pray", "grateful"],
+    "1f4aa": ["strong", "muscle", "power"],
+    "2728": ["sparkles", "magic", "new", "shine"],
+    "1fae1": ["salute", "respect", "yes sir"],
+    "1f91d": ["handshake", "deal", "agreement"],
+    "1f634": ["sleeping", "boring", "tired"],
+    "1f92b": ["shush", "secret", "quiet"],
+}
 
 MUSIC_GENRES: dict[str, list[str]] = {
     "lofi": ["lofi", "lo-fi chill", "chillhop", "lofi hip hop", "jazzy chill", "chill beat"],
@@ -414,6 +458,50 @@ def build_visual(
     return items
 
 
+def build_noto(f: Fetcher, root: Path) -> list[dict[str, Any]]:
+    """Noto animated emoji reaction stickers (CC BY 4.0), kept as transparent GIFs."""
+    lib = root / "gifs"
+    lib.mkdir(parents=True, exist_ok=True)
+    items = _load(lib / "manifest.json")
+    have = {i["id"] for i in items} | set(exclusions())
+    catalog = {i["codepoint"]: i for i in f.get_json(NOTO_CATALOG)["icons"]}
+    for code, words in NOTO_REACTIONS.items():
+        item_id = f"gifs:noto-{code}"
+        if item_id in have or code not in catalog:
+            continue
+        dest = lib / f"noto-{code}.gif"
+        try:
+            f.download(NOTO_GIF.format(code=code), dest, MAX_BYTES["gifs"], "image/gif")
+            probe(dest)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  skip noto {code}: {exc}", file=sys.stderr)
+            dest.unlink(missing_ok=True)
+            continue
+        meta = catalog[code]
+        tags = [*words, *(t.strip(":").replace("-", " ") for t in meta.get("tags", []))]
+        title = (meta.get("tags") or [code])[0].strip(":").replace("-", " ")
+        items.append(
+            {
+                "id": item_id,
+                "file": dest.name,
+                "title": f"Animated emoji: {title}",
+                "tags": tags,
+                "source": "noto-emoji-animation",
+                "source_url": NOTO_SOURCE,
+                "license": "CC-BY-4.0",
+                "license_url": NOTO_LICENSE_URL,
+                "attribution_required": True,
+                "attribution_text": "Animated emoji: Noto Emoji Animation by Google, CC BY 4.0",
+                "commercial_use": True,
+                "width": 512,
+                "height": 512,
+                "alpha": True,
+            }
+        )
+        print(f"  gifs/noto: {title}")
+    return items
+
+
 def build_memes(f: Fetcher, root: Path, count: int) -> list[dict[str, Any]]:
     lib = root / "memes"
     lib.mkdir(parents=True, exist_ok=True)
@@ -484,6 +572,8 @@ def main() -> None:
             items = build_visual(f, root, "images", IMAGE_QUERIES, per_query=2, min_side=1000)
         elif lib == "gifs":
             items = build_visual(f, root, "gifs", GIF_QUERIES, per_query=2, min_side=200)
+            (root / "gifs" / "manifest.json").write_text(json.dumps(items, indent=2) + "\n")
+            items = build_noto(f, root)
         elif lib == "memes":
             items = build_memes(f, root, count=40)
         items = purge(root, lib, items)

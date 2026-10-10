@@ -127,6 +127,8 @@ async def render_timeline(
             size_px=tl.captions.size_px,
             base_color=tl.captions.base_color,
             highlight_color=tl.captions.highlight_color,
+            uppercase=tl.captions.uppercase,
+            animation=tl.captions.animation,
         )
         asset_shas = {aid: _sha_file(asset_files[aid]) for aid in _seg_asset_ids(seg, asset_files)}
         key = f"segments/{slice_hash(seg, profile.name, ass_text, asset_shas)}.mp4"
@@ -175,7 +177,8 @@ async def render_timeline(
     )
     on_progress(0.85)
 
-    audio_path = await asyncio.to_thread(_render_audio, tl, master_path, work)
+    music_path = asset_files.get(tl.music.asset) if tl.music else None
+    audio_path = await asyncio.to_thread(_render_audio, tl, master_path, work, music_path)
     on_progress(0.95)
 
     out_hash = _timeline_hash(tl, profile)
@@ -227,15 +230,12 @@ def _render_segment(
 ) -> None:
     ass_path = out_path + ".ass"
     Path(ass_path).write_text(ass_text, encoding="utf-8")
-    loops = {
-        asset_files[o.asset]: (end - start)
-        for o, start, end in seg.overlays
-        if o.type in ("image", "meme", "stat_card", "headline_card")
-    }
-    inputs = build_inputs(master, loops)
-    asset_labels = {
-        aid: f"[{i}:v]" for i, aid in enumerate(_seg_asset_ids(seg, asset_files), start=1)
-    }
+    for overlay, _, _ in seg.overlays:
+        if overlay.asset not in asset_files:
+            raise RenderError("unknown_asset", f"no local file for overlay asset {overlay.asset}")
+    # One input per overlay window (same asset twice = two inputs, each time-shifted).
+    inputs = build_inputs(master, [(asset_files[o.asset], end) for o, _start, end in seg.overlays])
+    asset_labels = {o.id: f"[{i}:v]" for i, (o, _, _) in enumerate(seg.overlays, start=1)}
     slice_tl = tl.model_copy(update={"video_clips": seg.clips})
     script, video_out = build_video_filter(
         slice_tl,
@@ -262,10 +262,12 @@ def audio_settings(tl: Timeline) -> tuple[bool, float]:
     return denoise, lufs
 
 
-def _render_audio(tl: Timeline, master: str, work: Path) -> str:
+def _render_audio(tl: Timeline, master: str, work: Path, music_path: str | None = None) -> str:
     from app.media.probe import probe_file
 
     denoise, lufs = audio_settings(tl)
+    music = (tl.music.level_db, tl.duration_s) if tl.music and music_path else None
+    music_in = ["-stream_loop", "-1", "-i", music_path] if music and music_path else []
     try:
         has_audio = probe_file(master).acodec is not None
     except Exception:
@@ -287,8 +289,9 @@ def _render_audio(tl: Timeline, master: str, work: Path) -> str:
             ffmpeg_path(),
             "-hide_banner",
             *audio_in,
+            *music_in,
             "-filter_complex",
-            audio_filter(spans, denoise=denoise, lufs=lufs),
+            audio_filter(spans, denoise=denoise, lufs=lufs, music=music),
             "-map",
             "[aout]",
             "-f",
@@ -310,8 +313,9 @@ def _render_audio(tl: Timeline, master: str, work: Path) -> str:
             ffmpeg_path(),
             "-y",
             *audio_in,
+            *music_in,
             "-filter_complex",
-            audio_filter(spans, measured, denoise=denoise, lufs=lufs),
+            audio_filter(spans, measured, denoise=denoise, lufs=lufs, music=music),
             "-map",
             "[aout]",
             "-c:a",

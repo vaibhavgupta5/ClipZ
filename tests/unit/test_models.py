@@ -1,71 +1,56 @@
-"""Core data-model contract: collections, license fields, uniqueness rules (no DB needed)."""
+"""Data-model contract: every model has a table whose columns match it (no DB needed)."""
 
-import uuid
-from typing import Any
+import re
+from pathlib import Path
 
-from app.db import ensure_indexes
-from app.models import Asset, Doc, Job, Render, TimelineVersion
+from app.db import _col, _order, _where
+from app.models import Asset, Doc, Job, Render
 
-EXPECTED = {
-    "users",
-    "projects",
-    "assets",
-    "timelines",
-    "timeline_versions",
-    "messages",
-    "jobs",
-    "renders",
-    "analyses",
-    "agent_runs",
-}
+SQL = "\n".join(p.read_text() for p in sorted(Path("app/sql").glob("*.sql")))
 
 
-class _FakeColl:
-    def __init__(self, name: str, log: list[tuple[str, Any, bool]]) -> None:
-        self.name, self.log = name, log
-
-    async def create_index(self, keys: Any, unique: bool = False) -> str:
-        self.log.append((self.name, keys, unique))
-        return "ix"
-
-
-class _FakeDb:
-    def __init__(self) -> None:
-        self.log: list[tuple[str, Any, bool]] = []
-
-    def __getitem__(self, name: str) -> _FakeColl:
-        return _FakeColl(name, self.log)
+def _table_columns(table: str) -> set[str]:
+    body = re.search(rf"CREATE TABLE {table} \((.*?)\n\)", SQL, re.S)
+    assert body, f"no CREATE TABLE for {table}"
+    cols = set()
+    for line in body.group(1).splitlines():
+        m = re.match(r"\s+([a-z0-9_]+)\s+[a-z]", line)
+        if m and m.group(1) not in ("primary", "unique"):
+            cols.add(m.group(1))
+    return cols
 
 
-def _unique(log: list[tuple[str, Any, bool]], name: str) -> list[Any]:
-    return [keys for coll, keys, unique in log if coll == name and unique]
-
-
-def test_all_collections_declared() -> None:
-    assert {c.collection for c in Doc.__subclasses__()} == EXPECTED
+def test_every_model_has_a_matching_table() -> None:
+    models = Doc.__subclasses__()
+    assert len(models) >= 13
+    for model in models:
+        assert _table_columns(model.collection) == set(model.model_fields), model.__name__
 
 
 def test_assets_carry_license_metadata() -> None:
     for name in ("source", "license", "attribution_required", "attribution_text", "commercial_use"):
-        assert name in Asset.model_fields, f"assets.{name} missing"
+        assert name in Asset.model_fields
+    assert "license               text NOT NULL" in SQL
 
 
-def test_id_round_trips_as_mongo_id() -> None:
-    job = Job(type="ingest", idempotency_key="k")
-    raw = job.to_mongo()
-    assert isinstance(raw["_id"], uuid.UUID) and "id" not in raw
-    assert Job.model_validate(raw).id == job.id
+def test_uniqueness_rules_exist() -> None:
+    assert "idempotency_key  text NOT NULL UNIQUE" in SQL
+    assert "UNIQUE (timeline_id, version)" in SQL
+    assert "UNIQUE (source_sha, analyzer, version, params_hash)" in SQL
 
 
-async def test_unique_indexes() -> None:
-    db = _FakeDb()
-    await ensure_indexes(db)  # type: ignore[arg-type]
-    assert _unique(db.log, Job.collection) == ["idempotency_key"]
-    assert _unique(db.log, TimelineVersion.collection) == [[("timeline_id", 1), ("version", 1)]]
-    assert _unique(db.log, "users") == ["api_key_hash"]
-    assert _unique(db.log, "timelines") == ["project_id"]
+def test_telemetry_tables_are_hypertables_with_rollups() -> None:
+    for t in ("agent_runs", "tool_calls", "pipeline_stages", "render_progress"):
+        assert re.search(rf"CREATE TABLE {t} \(.*?tsdb\.hypertable", SQL, re.S), t
+    for v in ("agent_runs_hourly", "tool_calls_hourly", "pipeline_stages_hourly"):
+        assert f"CREATE MATERIALIZED VIEW {v}" in SQL
 
 
-def test_renders_link_to_timeline_hash() -> None:
-    for name in ("timeline_version_id", "timeline_hash", "profile", "status", "output_key"):
-        assert name in Render.model_fields, f"renders.{name} missing"
+def test_query_builder_rejects_unknown_columns_and_binds_values() -> None:
+    import pytest
+
+    where, args = _where(Job, {"_id": 1, "status": "done", "error": None})
+    assert where == ' WHERE "id" = $1 AND "status" = $2 AND "error" IS NULL' and args == [1, "done"]
+    assert _order(Render, [("created_at", -1)]) == ' ORDER BY "created_at" DESC'
+    with pytest.raises(ValueError):
+        _col(Job, 'status"; DROP TABLE jobs; --')

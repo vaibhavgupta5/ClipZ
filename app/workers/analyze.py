@@ -6,13 +6,16 @@ Without LLM keys, beats/romanization are skipped (documented degradation).
 
 import asyncio
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 from app import db as db_ops
+from app import telemetry
+from app.analysis.asr_whisper import asr_version
 from app.analysis.beats import detect_beats
-from app.analysis.cache import load_cached, save_bundle
+from app.analysis.cache import link_bundle, load_cached, save_bundle
 from app.analysis.emphasis import tag_emphasis
 from app.analysis.energy import EnergyAnalyzer
 from app.analysis.fakes import FakeFaces
@@ -35,6 +38,16 @@ ANALYZER = "full"
 VERSION = "1"
 
 
+def _vad() -> Any:
+    """Silero (ONNX via faster-whisper) when available, else the energy VAD."""
+    try:
+        from app.analysis.vad_silero import SileroVad
+
+        return SileroVad()
+    except Exception:  # noqa: BLE001 - degrade to the model-free VAD
+        return EnergyVad()
+
+
 def default_stages(settings: Settings | None = None) -> dict[str, Any]:
     """Production stages: real signals, real ASR (faster-whisper, WHISPER_MODEL)."""
     from app.analysis.asr_whisper import FasterWhisperTranscriber
@@ -42,7 +55,7 @@ def default_stages(settings: Settings | None = None) -> dict[str, Any]:
 
     return {
         "transcriber": FasterWhisperTranscriber((settings or get_settings()).WHISPER_MODEL),
-        "vad": EnergyVad(),
+        "vad": _vad(),
         "scenes": SceneDetector(),
         "energy": EnergyAnalyzer(),
         "fillers": None,  # language known only after transcription
@@ -169,7 +182,8 @@ async def analyze_asset(
     params: dict[str, object] = {
         "language": language,
         "caption_script": caption_script,
-        "asr_model": settings.WHISPER_MODEL,
+        "asr": asr_version(settings.WHISPER_MODEL),
+        "vad": "silero-onnx-1",
     }
     db = db_ops.get_db(settings)
     try:
@@ -178,10 +192,12 @@ async def analyze_asset(
             # Same bytes analysed before (maybe another project): give THIS project a timeline.
             master = store.path_for(f"{base}/master.mp4")
             duration_s = await asyncio.to_thread(probe_duration_s, str(master))
+            await link_bundle(db, pid, source_sha, ANALYZER, VERSION, params)
             await _ensure_timeline(db, pid, hit, duration_s)
             await _set_job(db, jid, "done", 1.0)
             return {"status": "done", "reused": True}
-        return await _run_analysis(
+        started = time.monotonic()
+        result = await _run_analysis(
             db,
             store,
             jid,
@@ -194,8 +210,20 @@ async def analyze_asset(
             stages or default_stages(settings),
             _default_llm(settings),
         )
+        master = store.path_for(f"{base}/master.mp4")
+        media_s = await asyncio.to_thread(probe_duration_s, str(master))
+        await telemetry.stage(
+            db,
+            "analyze",
+            int((time.monotonic() - started) * 1000),
+            project_id=pid,
+            job_id=jid,
+            media_s=media_s,
+        )
+        return result
     except Exception as exc:
         await _set_job(db, jid, "failed", 1.0, f"{type(exc).__name__}: {exc}")
+        await telemetry.stage(db, "analyze", 0, project_id=pid, job_id=jid, ok=False)
         return {"status": "failed", "error": str(exc)}
 
 

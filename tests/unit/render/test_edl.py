@@ -71,7 +71,7 @@ def test_overlay_enable_window_and_layout() -> None:
     )
     tl = _timeline(overlays=[ov])
     script, _ = build_video_filter(tl, PREVIEW, asset_labels={"g1": "[1:v]"})
-    assert "enable='between(t,0.580,1.680)'" in script
+    assert "enable='between(t,0.980,2.080)'" in script
     assert "overlay=" in script
 
 

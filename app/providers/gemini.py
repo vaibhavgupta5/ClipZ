@@ -21,7 +21,7 @@ from app.providers.tools import (
     Usage,
 )
 
-DEFAULT_MODEL = "gemini-3.8-flash"
+DEFAULT_MODEL = "gemini-2.5-flash-lite"
 _STATUS: dict[str, StopReason] = {
     "completed": "end_turn",
     "requires_action": "tool_use",
@@ -89,7 +89,9 @@ def build_body(request: ToolTurnRequest, model: str, thinking_level: str) -> dic
         ],
         "generation_config": {
             "max_output_tokens": request.max_tokens,
-            "thinking_level": thinking_level,
+            # empty = model default (2.5 Flash-Lite: no thinking; its "low" maps to an
+            # invalid 256-token budget, so the field must be omitted for it)
+            **({"thinking_level": thinking_level} if thinking_level else {}),
         },
         "store": False,
     }
@@ -160,7 +162,7 @@ class GeminiLLM:
         self,
         api_key: str,
         model: str = DEFAULT_MODEL,
-        thinking_level: str = "low",
+        thinking_level: str = "",
         client: Any | None = None,
     ) -> None:
         self.model = model

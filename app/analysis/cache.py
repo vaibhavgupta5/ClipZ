@@ -4,11 +4,9 @@ import hashlib
 import json
 import uuid
 
-from pymongo.errors import DuplicateKeyError
-
 from app import db as db_ops
 from app.analysis.models import AnalysisBundle, cache_key
-from app.db import Database
+from app.db import Database, DuplicateKeyError
 from app.models import Analysis
 from app.storage import Storage
 
@@ -75,3 +73,28 @@ async def save_bundle(
     except DuplicateKeyError:
         pass  # another run cached the same bundle
     return key
+
+
+async def link_bundle(
+    db: Database,
+    project_id: uuid.UUID,
+    source_sha: str,
+    analyzer: str,
+    version: str,
+    params: dict[str, object],
+) -> None:
+    """Record that this project uses an already-cached bundle (idempotent)."""
+    try:
+        await db_ops.insert(
+            db,
+            Analysis(
+                project_id=project_id,
+                source_sha=source_sha,
+                analyzer=analyzer,
+                version=version,
+                params_hash=params_hash(params),
+                bundle_key=cache_key(source_sha, analyzer, version, params),
+            ),
+        )
+    except DuplicateKeyError:
+        pass

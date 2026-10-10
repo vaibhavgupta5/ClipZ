@@ -1,14 +1,20 @@
 services:
-  mongo:
-    image: mongo:8.0
+  tiger:
+    # Same engine as Tiger Cloud (PostgreSQL + TimescaleDB). Local dev/tests only;
+    # point TIGER_DATABASE_URL at your Tiger Cloud service for the real app.
+    image: timescale/timescaledb:latest-pg17
+    environment:
+      POSTGRES_USER: reelforge
+      POSTGRES_PASSWORD: reelforge
+      POSTGRES_DB: reelforge
     ports:
-      - "27018:27017"  # host 27017 is often taken by another local mongo
+      - "5433:5432"  # 5432 is often taken by a host postgres
     volumes:
-      - mongodata:/data/db
+      - tigerdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      test: ["CMD-SHELL", "pg_isready -U reelforge -d reelforge"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 20
 
   redis:
@@ -25,18 +31,20 @@ services:
     build: .
     user: "${UID:-1000}:${GID:-1000}"  # bind-mounted data dirs stay owned by you
     depends_on:
-      mongo:
+      tiger:
         condition: service_healthy
       redis:
         condition: service_healthy
     environment:
-      MONGODB_URL: mongodb://mongo:27017
-      MONGODB_DB: reelforge
+      # Containers use Tiger Cloud when TIGER_CLOUD_DATABASE_URL is set in .env, else the tiger service.
+      TIGER_DATABASE_URL: ${TIGER_CLOUD_DATABASE_URL:-postgresql://reelforge:reelforge@tiger:5432/reelforge}
       REDIS_URL: redis://redis:6379/0
       UPLOAD_DIR: /srv/data/upload
       WORK_DIR: /srv/data/work
       EDITED_DIR: /srv/data/editedVideo
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
+      GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL:-}
       ASSETS_DIR: /srv/assets
       UV_CACHE_DIR: /tmp/uv
     ports:
@@ -53,18 +61,20 @@ services:
     build: .
     user: "${UID:-1000}:${GID:-1000}"  # bind-mounted data dirs stay owned by you
     depends_on:
-      mongo:
+      tiger:
         condition: service_healthy
       redis:
         condition: service_healthy
     environment:
-      MONGODB_URL: mongodb://mongo:27017
-      MONGODB_DB: reelforge
+      # Containers use Tiger Cloud when TIGER_CLOUD_DATABASE_URL is set in .env, else the tiger service.
+      TIGER_DATABASE_URL: ${TIGER_CLOUD_DATABASE_URL:-postgresql://reelforge:reelforge@tiger:5432/reelforge}
       REDIS_URL: redis://redis:6379/0
       UPLOAD_DIR: /srv/data/upload
       WORK_DIR: /srv/data/work
       EDITED_DIR: /srv/data/editedVideo
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
+      GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL:-}
       ASSETS_DIR: /srv/assets
       WHISPER_MODEL: ${WHISPER_MODEL:-small}
       HF_HOME: /srv/data/work/.hf  # faster-whisper model, downloaded once
@@ -78,4 +88,4 @@ services:
     command: uv run --no-sync arq app.workers.main.WorkerSettings
 
 volumes:
-  mongodata:
+  tigerdata:

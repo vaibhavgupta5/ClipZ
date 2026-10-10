@@ -66,6 +66,8 @@ def ass_for_cues(
     size_px: int = 84,
     base_color: str = "#FFFFFF",
     highlight_color: str = "#FFD400",
+    uppercase: bool = False,
+    animation: str = "none",
 ) -> str:
     """Build a complete ASS document from output-relative cues.
 
@@ -110,23 +112,32 @@ def ass_for_cues(
         if mode == "word_highlight":
             for k, active in enumerate(group):
                 end_t = group[k + 1].start if k + 1 < len(group) else group_end
-                text = _line(group, active.id, hl)
+                text = _line(group, active.id, hl, uppercase, pop=animation == "pop")
                 lines.append(
                     f"Dialogue: 0,{_stamp(active.start)},{_stamp(end_t)},Pop,,0,0,0,,{text}"
                 )
             continue
-        text = _line(group, highlight, hl)
+        text = _line(group, highlight, hl, uppercase)
         lines.append(f"Dialogue: 0,{_stamp(group[0].start)},{_stamp(group_end)},Pop,,0,0,0,,{text}")
     return "\n".join(lines) + "\n"
 
 
-def _line(group: list[CaptionCue], active: str | None, colour: str) -> str:
-    """One caption line; the active cue is recoloured, then reset to the style colour."""
+POP = "\\fscx85\\fscy85\\t(0,90,\\fscx112\\fscy112)\\t(90,160,\\fscx100\\fscy100)"
+
+
+def _line(
+    group: list[CaptionCue],
+    active: str | None,
+    colour: str,
+    uppercase: bool = False,
+    pop: bool = False,
+) -> str:
+    """One caption line; the active cue is recoloured (and popped), then reset."""
     parts: list[str] = []
     for cue in group:
-        text = escape_ass(cue.text)
+        text = escape_ass(cue.text.upper() if uppercase else cue.text)
         if active is not None and cue.id == active:
-            text = "{\\c" + colour + "}" + text + "{\\r}"
+            text = "{" + (POP if pop else "") + "\\c" + colour + "}" + text + "{\\r}"
         parts.append(text)
     return " ".join(parts)
 

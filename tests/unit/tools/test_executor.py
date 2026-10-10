@@ -1,9 +1,12 @@
 """Executor tests: pure dispatch, actionable failures, no-ops, analysis-driven tools."""
 
+from pathlib import Path
+
 import pytest
 
 from app.analysis.models import FillerHit, SpeechRange
-from app.timeline.schema import VideoClip
+from app.providers.local import AssetCatalog
+from app.timeline.schema import Timeline, VideoClip
 from app.timeline.transcript import Transcript, Word
 from app.tools.executor import Effect, ToolFailure, ToolOutcome, ToolState, execute
 from tests.unit.timeline.test_ops import _timeline
@@ -97,9 +100,26 @@ def test_remove_silence_removes_long_gap() -> None:
 
 def test_remove_silence_without_words_is_noop() -> None:
     tl = _timeline().model_copy(update={"transcript": Transcript(words=[])})
-    out = _ok(execute("remove_silence", {}, ToolState(tl)))
+    out = _ok(execute("remove_silence", {}, ToolState(tl, speech=[SpeechRange(start=0, end=1)])))
     assert out.effect == Effect.NONE
     assert "no speech" in out.output(version=1).model_dump()["summary"]
+
+
+def test_remove_silence_refuses_without_vad_or_when_it_would_gut_the_video() -> None:
+    assert _fail(execute("remove_silence", {}, ToolState(_timeline()))).errors[0].code == "no_vad"
+    # VAD says only the first 0.5 s is speech but words exist everywhere -> words protect them;
+    # a transcript with 1 word and a tiny VAD range would delete > 50%: refuse.
+    one_word = _timeline().model_copy(
+        update={
+            "transcript": Transcript(
+                words=[Word(id="w1", start=0.0, end=0.4, text="a", display_text="a", lang="en")]
+            )
+        }
+    )
+    fail = _fail(
+        execute("remove_silence", {}, ToolState(one_word, speech=[SpeechRange(start=0.0, end=0.5)]))
+    )
+    assert fail.errors[0].code == "suspicious_silence"
 
 
 def test_remove_fillers_uses_analysis_hits_and_lang() -> None:
@@ -158,7 +178,7 @@ def test_reframe_render_ask_undo_effects() -> None:
     assert _ok(execute("redo", {}, state)).effect == Effect.REDO
 
 
-def test_every_registered_tool_has_a_handler() -> None:
+def test_every_registered_tool_has_a_handler(tmp_path: Path) -> None:
     from app.tools.mvp import TOOLS
 
     minimal: dict[str, dict[str, object]] = {
@@ -166,9 +186,20 @@ def test_every_registered_tool_has_a_handler() -> None:
         "delete_range": {"start_word": "w1", "end_word": "w2"},
         "cut_by_transcript": {"start_word": "w1", "end_word": "w2"},
         "ask_user": {"question": "?"},
+        "search_assets": {"kind": "image", "query": "money"},
+        "insert_asset": {"asset_id": "images:1", "at_word": "w5"},
+        "insert_meme": {"template_id": "memes:imgflip-1", "top_text": "me", "at_word": "w5"},
+        "remove_insert": {"insert_id": "ins9"},
+        "add_inserts": {"items": [{"at_word": "w5", "kind": "image", "query": "money"}]},
+        "add_music": {"genre": "upbeat"},
     }
+    vad = [SpeechRange(start=0.0, end=10.0)]
+    state = ToolState(_long_timeline(), speech=vad, catalog=_catalog(tmp_path))
     for tool in TOOLS:
-        result = execute(tool.name, minimal.get(tool.name, {}), ToolState(_timeline()))
+        result = execute(tool.name, minimal.get(tool.name, {}), state)
+        if tool.name == "remove_insert":  # handled: unknown id is an actionable failure
+            assert isinstance(result, ToolFailure) and result.errors[0].code == "unknown_overlay"
+            continue
         assert isinstance(result, ToolOutcome), (tool.name, result)
 
 
@@ -191,3 +222,194 @@ def test_monetised_export_blocks_personal_use_inserts() -> None:
     ok = _ok(execute("export", {"monetized": False}, ToolState(tl)))
     assert ok.effect == Effect.RENDER
     assert _ok(execute("export", {}, ToolState(_timeline()))).effect == Effect.RENDER
+
+
+def _catalog(tmp_path: Path) -> "AssetCatalog":
+    import json
+
+    from PIL import Image
+
+    from app.providers.local import AssetCatalog
+
+    root = tmp_path / "assets"
+    (root / "music").mkdir(parents=True)
+    (root / "music" / "a.mp3").write_bytes(b"x")
+    (root / "music" / "manifest.json").write_text(
+        json.dumps(
+            [
+                {
+                    "id": "music:a",
+                    "file": "a.mp3",
+                    "title": "Happy Day",
+                    "tags": ["upbeat", "happy"],
+                    "source": "test",
+                    "license": "CC-BY-3.0",
+                    "attribution_required": True,
+                    "attribution_text": "Happy Day by X, CC BY 3.0",
+                    "commercial_use": True,
+                    "genre": "upbeat",
+                    "duration_s": 120.0,
+                }
+            ]
+        )
+    )
+    for lib, file, extra in (
+        ("images", "1.jpg", {}),
+        ("gifs", "1.gif", {}),
+        ("memes", "drake.jpg", {"license": "unknown", "commercial_use": False}),
+    ):
+        (root / lib).mkdir(parents=True)
+        Image.new("RGB", (320, 240), "gray").save(
+            root / lib / file, "PNG" if lib != "gifs" else "GIF"
+        )
+        item = {
+            "id": f"{lib}:1" if lib != "memes" else "memes:imgflip-1",
+            "file": file,
+            "title": f"{lib} money",
+            "tags": ["money", "cash"],
+            "source": "test",
+            "license": "CC0-1.0",
+            "attribution_required": False,
+            "commercial_use": True,
+            **extra,
+        }
+        (root / lib / "manifest.json").write_text(json.dumps([item]))
+    return AssetCatalog(root, tmp_path / "memes-out")
+
+
+def _long_timeline() -> "Timeline":
+    from app.timeline.schema import Timeline as TL
+
+    words = [
+        Word(
+            id=f"w{i + 1}", start=i * 0.5, end=i * 0.5 + 0.4, text="x", display_text="x", lang="en"
+        )
+        for i in range(20)
+    ]
+    return TL(
+        project_id="00000000-0000-0000-0000-000000000000",  # type: ignore[arg-type]
+        transcript=Transcript(words=words),
+        video_clips=[VideoClip(id="c1", asset="a1", src_in=0.0, src_out=10.0)],
+    )
+
+
+def test_search_and_insert_follow_placement_rules(tmp_path: Path) -> None:
+    state = ToolState(_long_timeline(), catalog=_catalog(tmp_path))
+    hits = _ok(execute("search_assets", {"kind": "image", "query": "money"}, state))
+    assert hits.output().model_dump()["results"][0]["id"] == "images:1"
+    assert (
+        _fail(execute("insert_asset", {"asset_id": "images:1", "at_word": "w1"}, state))
+        .errors[0]
+        .code
+        == "too_early"
+    )
+    first = _ok(execute("insert_asset", {"asset_id": "gifs:1", "at_word": "w4"}, state))
+    assert first.timeline is not None
+    ov = first.timeline.overlays[0]
+    assert (ov.id, ov.type, ov.layout, ov.license) == ("ins1", "gif", "pip_pop", "CC0-1.0")
+    near = ToolState(first.timeline, catalog=state.catalog)
+    assert (
+        _fail(execute("insert_asset", {"asset_id": "images:1", "at_word": "w6"}, near))
+        .errors[0]
+        .code
+        == "too_close"
+    )
+    assert (
+        _fail(execute("insert_asset", {"asset_id": "images:1", "at_word": "w20"}, near))
+        .errors[0]
+        .code
+        == "past_end"
+    )
+    second = _ok(execute("insert_asset", {"asset_id": "images:1", "at_word": "w10"}, near))
+    assert second.timeline is not None and [o.layout for o in second.timeline.overlays] == [
+        "pip_pop",
+        "blur_bg_contain",
+    ]
+
+
+def test_insert_meme_renders_caption_and_is_personal_use(tmp_path: Path) -> None:
+    state = ToolState(_long_timeline(), catalog=_catalog(tmp_path))
+    assert (
+        _fail(execute("insert_asset", {"asset_id": "memes:imgflip-1", "at_word": "w5"}, state))
+        .errors[0]
+        .code
+        == "use_insert_meme"
+    )
+    assert (
+        _fail(execute("insert_meme", {"template_id": "memes:imgflip-1", "at_word": "w5"}, state))
+        .errors[0]
+        .code
+        == "empty_meme"
+    )
+    out = _ok(
+        execute(
+            "insert_meme",
+            {
+                "template_id": "memes:imgflip-1",
+                "top_text": "cloud bill",
+                "bottom_text": "gone",
+                "at_word": "w5",
+            },
+            state,
+        )
+    )
+    assert out.timeline is not None
+    ov = out.timeline.overlays[0]
+    assert (
+        ov.type == "meme" and ov.commercial_use is False and ov.asset.startswith("memes:imgflip-1:")
+    )
+    assert list((tmp_path / "memes-out").glob("*.png"))
+    fail = _fail(execute("export", {}, ToolState(out.timeline)))
+    assert fail.errors[0].code == "personal_use_assets"
+
+
+def test_out_of_range_numbers_are_clamped_not_rejected() -> None:
+    out = _ok(
+        execute(
+            "remove_silence",
+            {"min_silence_ms": 100, "padding_ms": 900},
+            ToolState(_timeline(), speech=[SpeechRange(start=0.0, end=3.0)]),
+        )
+    )
+    assert out.tool.name == "remove_silence"
+    fail = _fail(execute("remove_silence", {"min_silence_ms": "lots"}, ToolState(_timeline())))
+    assert fail.errors[0].field == "min_silence_ms"
+
+
+def test_add_inserts_places_matches_and_skips_with_reasons(tmp_path: Path) -> None:
+    state = ToolState(_long_timeline(), catalog=_catalog(tmp_path))
+    plan = {
+        "items": [
+            {"at_word": "w4", "kind": "gif", "query": "money"},
+            {"at_word": "w6", "kind": "image", "query": "money"},  # too close to w4
+            {
+                "at_word": "w10",
+                "kind": "meme",
+                "query": "money",
+                "top_text": "me",
+                "bottom_text": "rich",
+            },
+            {"at_word": "w14", "kind": "image", "query": "submarine"},  # no match
+        ]
+    }
+    out = _ok(execute("add_inserts", plan, state))
+    data = out.output(version=2).model_dump()
+    assert [p["at_word"] for p in data["placed"]] == ["w4", "w10"]
+    assert {s["at_word"]: s["reason"] for s in data["skipped"]} == {
+        "w6": "too_close",
+        "w14": "no image matches 'submarine'",
+    }
+    assert out.timeline is not None and [o.type for o in out.timeline.overlays] == ["gif", "meme"]
+
+
+def test_add_music_sets_licensed_bed_and_credit(tmp_path: Path) -> None:
+    from app.workers.render import attributions
+
+    state = ToolState(_long_timeline(), catalog=_catalog(tmp_path))
+    out = _ok(execute("add_music", {"genre": "upbeat", "mood": "happy party"}, state))
+    assert out.timeline is not None and out.timeline.music is not None
+    assert out.timeline.music.asset == "music:a" and out.timeline.music.level_db == -20.0
+    assert out.output(version=2).model_dump()["track"] == "Happy Day"
+    assert attributions(out.timeline) == ["Happy Day by X, CC BY 3.0"]
+    gone = _ok(execute("remove_music", {}, ToolState(out.timeline, catalog=state.catalog)))
+    assert gone.timeline is not None and gone.timeline.music is None

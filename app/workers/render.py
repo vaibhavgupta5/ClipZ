@@ -4,16 +4,20 @@ A final export ends the project's working set: ./work/<project>/ is deleted
 afterwards (ADR-010). Previews never delete anything.
 """
 
+import asyncio
 import tempfile
+import time
 import uuid
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
-from pymongo import MongoClient
-
 from app import db as db_ops
+from app import telemetry
 from app.db import Database
 from app.models import Asset, Job, TimelineVersion
 from app.models import Render as RenderRow
+from app.providers.local import resolve_asset_file
 from app.render.errors import RenderError
 from app.render.render import profile_for, render_timeline
 from app.settings import Settings
@@ -31,15 +35,30 @@ async def _set_job(
     )
 
 
-def _push_progress(settings: Settings, job_id: uuid.UUID, frac: float) -> None:
-    """Progress write from sync ffmpeg callbacks (sync client; no event loop needed)."""
-    client: MongoClient[dict[str, Any]] = MongoClient(
-        settings.MONGODB_URL, uuidRepresentation="standard"
-    )
-    with client:
-        client[settings.MONGODB_DB][Job.collection].update_one(
-            {"_id": job_id}, {"$set": {"status": "running", "progress": frac}}
-        )
+def _progress_writer(db: Database, jid: uuid.UUID, render: RenderRow) -> Callable[[float], None]:
+    """Thread-safe progress callback: updates the job row and logs a render_progress tick.
+
+    ffmpeg progress arrives on a worker thread; writes are scheduled onto the event loop
+    without waiting, so a slow database never stalls the render.
+    """
+    loop = asyncio.get_running_loop()
+
+    async def _write(frac: float) -> None:
+        await db_ops.update(db, Job, jid, {"status": "running", "progress": frac})
+        await telemetry.render_tick(db, render.id, render.project_id, render.profile, frac)
+
+    def push(frac: float) -> None:
+        loop.call_soon_threadsafe(lambda: loop.create_task(_write(frac)))
+
+    return push
+
+
+def attributions(tl: TimelineModel) -> list[str]:
+    """Credit lines the post caption must carry (CC BY assets), deduplicated in order."""
+    lines = [o.attribution_text for o in tl.overlays if o.attribution_required]
+    if tl.music is not None and tl.music.attribution_required:
+        lines.append(tl.music.attribution_text)
+    return list(dict.fromkeys(line for line in lines if line))
 
 
 async def render_task(ctx: dict[str, Any], *, job_id: str, render_id: str) -> dict[str, object]:
@@ -50,11 +69,23 @@ async def render_task(ctx: dict[str, Any], *, job_id: str, render_id: str) -> di
     render = await db_ops.get(db, RenderRow, rid)
     if render is None:
         raise ValueError(f"render {rid} does not exist")
+    started = time.monotonic()
+    stage_name = f"render-{render.profile}"
     try:
-        return await _run_render(db, get_storage(settings), settings, jid, render)
+        result = await _run_render(db, get_storage(settings), settings, jid, render)
+        await telemetry.stage(
+            db,
+            stage_name,
+            int((time.monotonic() - started) * 1000),
+            project_id=render.project_id,
+            job_id=jid,
+            media_s=float(str(result.get("media_s", 0.0))),
+        )
+        return result
     except Exception as exc:
         await _set_job(db, jid, "failed", 1.0, f"{type(exc).__name__}: {exc}")
         await db_ops.update(db, RenderRow, rid, {"status": "failed"})
+        await telemetry.stage(db, stage_name, 0, project_id=render.project_id, job_id=jid, ok=False)
         return {"status": "failed", "error": str(exc)}
 
 
@@ -74,7 +105,12 @@ async def _run_render(
         raise ValueError("master file missing from work dir (project already exported?)")
 
     asset_files: dict[str, str] = {}
+    meme_dir = Path(settings.WORK_DIR) / "cache" / "memes"
     for overlay in timeline.overlays:
+        library_file = resolve_asset_file(settings.ASSETS_DIR, meme_dir, overlay.asset)
+        if library_file is not None:
+            asset_files[overlay.asset] = str(library_file)
+            continue
         try:
             aid = uuid.UUID(overlay.asset)
         except ValueError:
@@ -86,12 +122,19 @@ async def _run_render(
             raise RenderError("unknown_asset", f"no local file for overlay asset {overlay.asset}")
         asset_files[overlay.asset] = str(store.path_for(asset.storage_key))
 
+    if timeline.music is not None:
+        music_file = resolve_asset_file(settings.ASSETS_DIR, meme_dir, timeline.music.asset)
+        if music_file is None:
+            raise RenderError("unknown_asset", f"music {timeline.music.asset} not in library")
+        asset_files[timeline.music.asset] = str(music_file)
+
     holder = {"db": 0.0}
+    push = _progress_writer(db, jid, render)
 
     def _progress(frac: float) -> None:
         if frac - holder["db"] >= PROGRESS_STEP or frac >= 1.0:
             holder["db"] = frac
-            _push_progress(settings, jid, round(frac, 3))
+            push(round(frac, 3))
 
     with tempfile.TemporaryDirectory(prefix="reelforge-render-") as tmp:
         out = await render_timeline(
@@ -107,9 +150,10 @@ async def _run_render(
             "output_key": key,
             "output_url": store.public_url(key),
             "timeline_hash": str(out["timeline_hash"]),
+            "attributions": attributions(timeline),
         },
     )
     await _set_job(db, jid, "done", 1.0)
     if profile.name == "final":
         store.delete_tree(f"projects/{render.project_id}")
-    return {"status": "done", "output_key": key}
+    return {"status": "done", "output_key": key, "media_s": timeline.duration_s}

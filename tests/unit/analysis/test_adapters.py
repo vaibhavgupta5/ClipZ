@@ -17,10 +17,11 @@ def test_whisper_adapter_unavailable_without_dep(monkeypatch: pytest.MonkeyPatch
 
 
 def test_silero_adapter_unavailable_without_dep(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setitem(sys.modules, "torch", None)
+    monkeypatch.setitem(sys.modules, "faster_whisper", None)
+    monkeypatch.setitem(sys.modules, "faster_whisper.vad", None)
     from app.analysis.vad_silero import SileroVad
 
-    with pytest.raises(ModelUnavailable, match="torch"):
+    with pytest.raises(ModelUnavailable, match="faster_whisper"):
         SileroVad()
 
 
@@ -33,5 +34,15 @@ def test_mediapipe_adapter_unavailable_without_dep(monkeypatch: pytest.MonkeyPat
 
 
 def test_adapters_do_not_import_heavy_deps_at_module_load() -> None:
-    for mod in ("torch", "faster_whisper", "mediapipe", "librosa", "cv2"):
-        assert mod not in sys.modules, f"{mod} imported at test-module load"
+    """Checked in a fresh interpreter: other tests may legitimately load these."""
+    import subprocess
+
+    code = (
+        "import sys\n"
+        "import app.analysis.asr_whisper, app.analysis.vad_silero, app.analysis.faces_mediapipe\n"
+        "import app.workers.analyze\n"
+        "bad = [m for m in ('torch', 'faster_whisper', 'mediapipe', 'librosa', 'cv2') "
+        "if m in sys.modules]\n"
+        "assert not bad, bad\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)  # noqa: S603

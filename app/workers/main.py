@@ -4,7 +4,7 @@ from typing import Any
 
 from arq.connections import RedisSettings
 
-from app.db import ensure_indexes, get_db
+from app.db import get_db, migrate
 from app.logging_setup import get_logger, setup_logging
 from app.settings import get_settings
 from app.storage import get_storage
@@ -21,7 +21,7 @@ async def startup(ctx: dict[str, Any]) -> None:
     setup_logging(settings.LOG_LEVEL)
     ctx["settings"] = settings
     get_storage(settings).ensure_dirs()
-    await ensure_indexes(get_db(settings))
+    await migrate(get_db(settings))
     log.info("worker startup")
 
 

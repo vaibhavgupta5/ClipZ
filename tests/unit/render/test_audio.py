@@ -75,3 +75,14 @@ def test_audio_settings_from_timeline_fx() -> None:
         }
     )
     assert audio_settings(tl) == (True, -16.0)
+
+
+def test_music_bed_is_ducked_mixed_then_normalised() -> None:
+    import pytest
+
+    filt = audio_filter([(0.0, 5.0, 1.0)], denoise=True, music=(-20.0, 5.0))
+    assert "[1:a]aresample=48000" in filt and "volume=-20.0dB" in filt
+    assert "[mus][sc]sidechaincompress" in filt and "afade=t=out:st=3.500" in filt
+    assert filt.index("amix") < filt.index("loudnorm") and filt.endswith("[aout]")
+    with pytest.raises(ValueError):
+        audio_filter([], music=(5.0, 3.0))

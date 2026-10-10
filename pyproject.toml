@@ -19,10 +19,10 @@ dependencies = [
   "python-multipart>=0.0.9",
   "numpy>=2.5.3",
   "sse-starlette>=3.0.3",
-  "pymongo>=4.13",
   "google-genai>=2.29.0",
   "pillow>=12.3.0",
   "faster-whisper>=1.2.1",
+  "asyncpg>=0.32.0",
 ]
 
 [dependency-groups]
@@ -35,6 +35,7 @@ dev = [
   "mypy>=1.10",
   "pre-commit>=3.5",
   "pytest-cov>=7.1.0",
+  "asyncpg-stubs>=0.32.0",
 ]
 
 [tool.uv]
@@ -63,6 +64,8 @@ ignore = ["S101"]
 # Integration tests invoke fixed ffmpeg/ffprobe arg lists (never shell, no variables in argv[0]).
 "scripts/fetch_assets.py" = ["S603", "S607"]
 "tests/evals/test_director_evals.py" = ["ASYNC240"]
+"tests/unit/test_no_secrets.py" = ["S603", "S607"]
+"tests/integration/test_music_mix.py" = ["S603", "S607", "ASYNC221"]
 "tests/integration/test_ingest.py" = ["S603", "S607"]
 "tests/integration/test_render.py" = ["S603", "S607"]
 "tests/golden/test_render.py" = ["S603", "S607", "ASYNC240", "ASYNC221"]

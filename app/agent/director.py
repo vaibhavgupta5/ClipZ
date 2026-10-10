@@ -6,6 +6,7 @@ Persistence and rendering go through ``Workspace`` so the loop is testable offli
 """
 
 import json
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
@@ -95,6 +96,10 @@ class DirectorResult:
     history: list[AgentMessage] = field(default_factory=list)
 
 
+def _ms(started: float) -> int:
+    return int((time.monotonic() - started) * 1000)
+
+
 def _add(a: Usage, b: Usage) -> Usage:
     return Usage(
         input_tokens=a.input_tokens + b.input_tokens,
@@ -115,6 +120,7 @@ class _Turn:
         self.failures: dict[str, int] = {}
         self.needs_preview = False
         self.rendered = False
+        self.log: list[tuple[str, bool, str]] = []  # (tool, ok, short reason)
 
     async def call(self, call: ToolCall) -> ToolResult:
         """Execute one tool call end to end and build the model-facing result."""
@@ -124,15 +130,19 @@ class _Turn:
             return self._error(
                 call, f"{call.name} failed {MAX_FAILURES_PER_TOOL} times; stop and tell the user"
             )
+        started = time.monotonic()
         outcome = execute(call.name, call.args, await self.ws.state())
         if isinstance(outcome, ToolFailure):
             self.failures[call.name] = self.failures.get(call.name, 0) + 1
-            return self._error(call, outcome.message())
+            code = outcome.errors[0].code if outcome.errors else "error"
+            self.log.append((call.name, False, code))
+            return self._error(call, outcome.message(), code, _ms(started))
         facts = await self._apply(outcome)
+        if outcome.effect != Effect.NONE:
+            self.log.append((call.name, True, ""))
         payload = outcome.output(**facts).model_dump(mode="json")
-        self.emit(
-            Event("tool_result", {"id": call.id, "name": call.name, "ok": True, "result": payload})
-        )
+        result = {"id": call.id, "name": call.name, "ok": True, "result": payload}
+        self.emit(Event("tool_result", {**result, "ms": _ms(started)}))
         return ToolResult(call_id=call.id, name=call.name, content=json.dumps(payload))
 
     async def _apply(self, outcome: ToolOutcome) -> dict[str, object]:
@@ -175,10 +185,11 @@ class _Turn:
             case _:
                 return {"version": await self.ws.current_version()}
 
-    def _error(self, call: ToolCall, message: str) -> ToolResult:
-        self.emit(
-            Event("tool_result", {"id": call.id, "name": call.name, "ok": False, "error": message})
-        )
+    def _error(
+        self, call: ToolCall, message: str, code: str = "rejected", ms: int = 0
+    ) -> ToolResult:
+        data = {"id": call.id, "name": call.name, "ok": False, "error": message}
+        self.emit(Event("tool_result", {**data, "code": code, "ms": ms}))
         return ToolResult(call_id=call.id, name=call.name, content=message, is_error=True)
 
     async def finish(self) -> None:
@@ -247,9 +258,24 @@ async def run_director(
         result.stopped = "cap"
         result.reply = f"I stopped after {max_iters} steps; tell me what to do next."
     await turn.finish()
+    result.reply = _grounded(result.reply, turn.log)
     result.history = msgs
     sink(Event("done", {"reply": result.reply, "stopped": result.stopped}))
     return result
+
+
+def _grounded(reply: str, log: list[tuple[str, bool, str]]) -> str:
+    """Append what actually happened, so the reply can never claim an edit that failed."""
+    if not log:
+        return reply
+    done = sorted({t for t, ok, _ in log if ok})
+    failed = sorted({f"{t} ({why})" for t, ok, why in log if not ok and t not in done})
+    lines = []
+    if done:
+        lines.append("Applied: " + ", ".join(done) + ".")
+    if failed:
+        lines.append("Not applied: " + ", ".join(failed) + ".")
+    return f"{reply}\n\n" + " ".join(lines) if reply else " ".join(lines)
 
 
 def _direct_reply(name: str, res: ToolResult) -> str:

@@ -1,6 +1,6 @@
 .PHONY: dev check worker golden eval-live assets down logs
 
-dev: ## docker compose up (mongo, redis) + API with reload
+dev: ## docker compose up (tiger/timescaledb, redis) + API with reload
 	docker compose up --build -d
 	docker compose ps
 

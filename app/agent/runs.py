@@ -13,8 +13,11 @@ from datetime import UTC, date, datetime
 from app import db as db_ops
 from app.agent.director import DirectorResult
 from app.db import Database
+from app.logging_setup import get_logger
 from app.models import AgentRun
 from app.providers.tools import Usage
+
+log = get_logger(component="runs")
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,8 @@ _FLASH_2027 = Price(input=1.50, output=7.50, cached=0.15)
 
 # model -> [(effective_from, price)], newest last
 PRICES: dict[str, list[tuple[date, Price]]] = {
+    # 2.5 Flash-Lite as quoted on the pricing page 2026-10-10 (text/image/video input).
+    "gemini-2.5-flash-lite": [(date(2000, 1, 1), Price(input=0.05, output=0.20, cached=0.01))],
     "gemini-3.8-flash": [(date(2000, 1, 1), _FLASH_2026), (date(2027, 1, 1), _FLASH_2027)],
     "gemini-3.6-flash": [(date(2000, 1, 1), _FLASH_2026), (date(2027, 1, 1), _FLASH_2027)],
     "gemini-3.5-flash-lite": [(date(2000, 1, 1), Price(input=0.30, output=2.50, cached=0.03))],
@@ -78,22 +83,24 @@ async def log_run(
     result: DirectorResult,
     latency_ms: int,
     first_token_ms: int | None,
-) -> AgentRun:
-    """Persist one Director run."""
-    return await db_ops.insert(
-        db,
-        AgentRun(
-            project_id=project_id,
-            model=result.model,
-            prompt_hash=prompt_hash(system),
-            tools=result.tools,
-            stopped=result.stopped,
-            iterations=result.iterations,
-            latency_ms=latency_ms,
-            first_token_ms=first_token_ms,
-            input_tokens=result.usage.input_tokens,
-            output_tokens=result.usage.output_tokens + result.usage.thought_tokens,
-            cache_read_tokens=result.usage.cache_read_tokens,
-            cost_usd=cost_usd(result.model, result.usage),
-        ),
+) -> AgentRun | None:
+    """Persist one Director run to the agent_runs hypertable (best effort: None on failure)."""
+    run = AgentRun(
+        project_id=project_id,
+        model=result.model,
+        prompt_hash=prompt_hash(system),
+        tools=result.tools,
+        stopped=result.stopped,
+        iterations=result.iterations,
+        latency_ms=latency_ms,
+        first_token_ms=first_token_ms,
+        input_tokens=result.usage.input_tokens,
+        output_tokens=result.usage.output_tokens + result.usage.thought_tokens,
+        cache_read_tokens=result.usage.cache_read_tokens,
+        cost_usd=cost_usd(result.model, result.usage),
     )
+    try:
+        return await db_ops.insert(db, run)
+    except Exception as exc:  # noqa: BLE001 - logging must never fail a chat turn
+        log.warning("agent run log failed", error=f"{type(exc).__name__}: {exc}")
+        return None

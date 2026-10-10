@@ -33,18 +33,47 @@ def _norm_filter(measured: dict[str, str] | None, lufs: float = _LUFS) -> str:
     return f"{base}:{params}{suffix}:linear=true"
 
 
+def music_chain(level_db: float, duration_s: float, fade_s: float = 1.5) -> str:
+    """Bed on input 1, sidechain-ducked under [sc]; returns the chain ending in [duck]."""
+    if not -40.0 <= level_db <= 0.0:
+        raise ValueError(f"music level {level_db} dB outside -40..0")
+    fade_at = max(0.0, duration_s - fade_s)
+    return (
+        f"[1:a]aresample=48000,aformat=channel_layouts=stereo,volume={level_db:.1f}dB,"
+        f"atrim=end={duration_s:.3f},afade=t=in:d=0.4,afade=t=out:st={fade_at:.3f}:d={fade_s:.2f}[mus];"
+        "[mus][sc]sidechaincompress=threshold=0.04:ratio=6:attack=15:release=350:makeup=1[duck]"
+    )
+
+
 def audio_filter(
     spans: list[tuple[float, float, float]],
     measured: dict[str, str] | None = None,
     *,
     denoise: bool = True,
     lufs: float = _LUFS,
+    music: tuple[float, float] | None = None,
 ) -> str:
-    """Full audio filter. spans = [(src_in, src_out, speed)]; empty = whole input."""
+    """Full audio filter. spans = [(src_in, src_out, speed)]; empty = whole input.
+
+    music = (level_db, output_duration_s): a bed on input 1 (looped by the caller),
+    ducked under the voice, mixed, then loudness-normalised together.
+    """
+    voice = _voice_filter(spans, denoise)
     tail = f"aresample=async=1,{_norm_filter(measured, lufs)}"
+    if music is None:
+        return f"{voice},{tail}[aout]"
+    level_db, duration_s = music
+    return (
+        f"{voice},asplit=2[vo][sc];{music_chain(level_db, duration_s)};"
+        f"[vo][duck]amix=inputs=2:duration=first:normalize=0,{tail}[aout]"
+    )
+
+
+def _voice_filter(spans: list[tuple[float, float, float]], denoise: bool) -> str:
+    """Cut/denoised/sped voice track (no output label: callers append the next filter)."""
     dn = ",afftdn" if denoise else ""
     if not spans:
-        return f"anull{dn},{tail}[aout]"
+        return f"[0:a]anull{dn}"
     parts: list[str] = []
     labels: list[str] = []
     for i, (src_in, src_out, speed) in enumerate(spans):
@@ -55,9 +84,8 @@ def audio_filter(
         )
         labels.append(f"[ax{i}]")
     if len(labels) == 1:
-        head = parts[0].rsplit("[ax0]", 1)[0]
-        return f"{head},{tail}[aout]"
-    return ";".join(parts) + ";" + "".join(labels) + f"concat=n={len(labels)}:v=0:a=1,{tail}[aout]"
+        return parts[0].rsplit("[ax0]", 1)[0]
+    return ";".join(parts) + ";" + "".join(labels) + f"concat=n={len(labels)}:v=0:a=1"
 
 
 def loudnorm_args(pass_n: int, measured: dict[str, str] | None = None) -> list[str]:

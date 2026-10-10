@@ -8,7 +8,21 @@ from typing import Any
 from app.analysis.adapters import ModelUnavailable
 from app.timeline.transcript import Transcript, Word
 
+ASR_LOGIC = "3"  # bump when decoding logic changes: part of the analysis cache key
 SUPPORTED = ("en", "hi")
+CONFIDENT = 0.8  # language-ID probability above which we trust an "en" detection
+
+
+def asr_version(model_size: str) -> str:
+    """Cache-key version for a model size (no model load needed)."""
+    return f"fw-{model_size}-{ASR_LOGIC}"
+
+
+def _mean_prob(segments: list[Any]) -> float:
+    probs = [float(getattr(w, "probability", 0.0)) for s in segments for w in (s.words or [])]
+    return sum(probs) / len(probs) if probs else 0.0
+
+
 MIN_WORD_S = 0.02
 
 
@@ -52,7 +66,7 @@ class FasterWhisperTranscriber:
         compute = "int8" if device == "cpu" else "float16"
         self._model = WhisperModel(model_size, device=device, compute_type=compute)
         self._model_size = model_size
-        self.VERSION = f"fw-{model_size}-2"  # model is part of the analysis cache key
+        self.VERSION = asr_version(model_size)  # part of the analysis cache key
 
     async def transcribe(self, wav_path: str, language: str) -> Transcript:
         """Transcribe 16 kHz mono wav; language en | hi | auto."""
@@ -60,15 +74,21 @@ class FasterWhisperTranscriber:
 
         lang = None if language == "auto" else language
 
-        def _decode() -> tuple[list[Any], Any]:
-            segments, info = _run(lang)
-            detected = getattr(info, "language", lang)
-            if lang is None and detected not in SUPPORTED:
-                # Product languages are en/hi only: re-decode as the likelier of the two.
-                probs = dict(getattr(info, "all_language_probs", None) or [])
-                best = max(SUPPORTED, key=lambda code: probs.get(code, 0.0))
-                segments, info = _run(best)
-            return segments, info
+        def _decode() -> tuple[list[Any], Any, str]:
+            if lang is not None:
+                segments, info = _run(lang)
+                return segments, info, lang
+            segments, info = _run(None)
+            detected = getattr(info, "language", None)
+            confidence = float(getattr(info, "language_probability", 0.0) or 0.0)
+            if detected == "en" and confidence >= CONFIDENT:
+                return segments, info, "en"
+            # Uncertain or Hindi: Hinglish often decodes far better as Roman-script English
+            # than as Devanagari. Decode both and keep the more confident transcript.
+            candidates = {code: _run(code) for code in SUPPORTED}
+            best = max(candidates, key=lambda code: _mean_prob(candidates[code][0]))
+            label = "hinglish" if best == "en" and detected == "hi" else best
+            return (*candidates[best], label)
 
         def _run(language_code: str | None) -> tuple[list[Any], Any]:
             # segments is a lazy generator: consume it here, inside the worker thread,
@@ -77,14 +97,11 @@ class FasterWhisperTranscriber:
             # own PyAV path breaks on av>=19 (removed `metadata_errors`).
             audio = _load_pcm16k(wav_path)
             segments, info = self._model.transcribe(
-                audio, language=language_code, word_timestamps=True, vad_filter=False
+                audio, language=language_code, word_timestamps=True, vad_filter=True
             )
             return list(segments), info
 
-        segments, info = await asyncio.to_thread(_decode)
-        detected = getattr(info, "language", None) or (lang or "en")
-        if detected not in SUPPORTED:
-            detected = "en"
+        segments, info, detected = await asyncio.to_thread(_decode)
         words: list[Word] = []
         for seg in segments:
             for w in seg.words or []:
@@ -102,7 +119,7 @@ class FasterWhisperTranscriber:
                         end=end,
                         text=text,
                         display_text=text,
-                        lang="hi" if detected == "hi" else "en",
+                        lang="hi" if detected == "hi" else "en",  # hinglish = Roman script
                         confidence=float(getattr(w, "probability", 1.0)),
                     )
                 )

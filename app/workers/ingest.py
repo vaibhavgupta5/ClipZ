@@ -8,11 +8,13 @@ folder (./upload/<project>/) is deleted; derived files live in ./work/<project>/
 import hashlib
 import json
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 from app import db as db_ops
+from app import telemetry
 from app.db import Database
 from app.media.errors import IngestError, MediaError
 from app.media.ffmpeg import ffmpeg_path, run_capture, run_ffmpeg
@@ -74,6 +76,10 @@ async def _put_asset(
     return await db_ops.insert(db, asset)
 
 
+def _ms(started: float) -> int:
+    return int((time.monotonic() - started) * 1000)
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as f:
@@ -123,13 +129,24 @@ async def ingest_asset(
     if await _existing_master(db, pid, sha256):
         await _set_job(db, jid, "done", 1.0)
         return {"status": "done", "reused": True}
+    started = time.monotonic()
     try:
         result = await _run_pipeline(db, store, jid, pid, storage_key, sha256)
         result["analysis_job_id"] = await queue_analysis(ctx, db, pid, sha256)
+        media = await _existing_master(db, pid, sha256)
+        await telemetry.stage(
+            db,
+            "ingest",
+            _ms(started),
+            project_id=pid,
+            job_id=jid,
+            media_s=(media.duration_ms or 0) / 1000 if media else 0.0,
+        )
         return result
     except (MediaError, IngestError, ValueError) as exc:
         code = getattr(exc, "code", "failed")
         await _set_job(db, jid, "failed", 1.0, f"[{code}] {exc}")
+        await telemetry.stage(db, "ingest", _ms(started), project_id=pid, job_id=jid, ok=False)
         return {"status": "failed", "error": str(exc)}
 
 

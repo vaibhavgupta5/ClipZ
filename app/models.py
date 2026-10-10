@@ -1,7 +1,7 @@
-"""Core data model as MongoDB documents (ADR-011).
+"""Data model: one pydantic class per Tiger Data table (ADR-016).
 
-One pydantic model per collection; ``id`` is stored as ``_id`` (UUID, standard
-representation). Helpers in app/db.py do the (de)serialisation.
+``collection`` is the table name; app/sql/*.sql defines the columns (same names).
+``id`` also answers to ``_id`` in query filters. Telemetry tables are hypertables.
 """
 
 import uuid
@@ -23,10 +23,6 @@ class Doc(BaseModel):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, alias="_id")
     created_at: datetime = Field(default_factory=_now)
-
-    def to_mongo(self) -> dict[str, Any]:
-        """Dict for insert/replace (``_id`` key, native UUID/datetime)."""
-        return self.model_dump(by_alias=True)
 
 
 class User(Doc):
@@ -137,7 +133,7 @@ class Analysis(Doc):
 
 
 class AgentRun(Doc):
-    """One Director run: prompt hash, tools, latency, tokens, cost (Phase 5 T5)."""
+    """One Director run (hypertable): prompt hash, tools, latency, tokens, cost."""
 
     collection: ClassVar[str] = "agent_runs"
     project_id: uuid.UUID
@@ -152,3 +148,37 @@ class AgentRun(Doc):
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cost_usd: float = 0.0
+
+
+class ToolCallLog(Doc):
+    """One Director tool call (hypertable)."""
+
+    collection: ClassVar[str] = "tool_calls"
+    run_id: uuid.UUID | None = None
+    project_id: uuid.UUID
+    tool: str
+    ok: bool
+    error_code: str | None = None
+    latency_ms: int = 0
+
+
+class PipelineStage(Doc):
+    """One finished ingest/analyze/render stage (hypertable)."""
+
+    collection: ClassVar[str] = "pipeline_stages"
+    project_id: uuid.UUID | None = None
+    job_id: uuid.UUID | None = None
+    stage: str
+    ok: bool = True
+    duration_ms: int
+    media_s: float = 0.0
+
+
+class RenderProgress(Doc):
+    """One render progress tick (hypertable)."""
+
+    collection: ClassVar[str] = "render_progress"
+    render_id: uuid.UUID
+    project_id: uuid.UUID | None = None
+    profile: str
+    progress: float

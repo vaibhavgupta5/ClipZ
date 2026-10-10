@@ -11,10 +11,14 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    MONGODB_URL: str = Field(
-        default="mongodb://localhost:27018", description="MongoDB connection string"
+    TIGER_DATABASE_URL: str = Field(
+        default="postgresql://reelforge:reelforge@localhost:5433/reelforge",
+        description="Tiger Data (Postgres+TimescaleDB) DSN; Tiger Cloud in .env, local for tests",
     )
-    MONGODB_DB: str = Field(default="reelforge", description="MongoDB database name")
+    TIGER_SCHEMA: str = Field(default="public", description="Postgres schema (tests isolate)")
+    TIGER_CLOUD_DATABASE_URL: str = Field(
+        default="", description="Tiger Cloud DSN for the Docker stack (compose maps it)"
+    )
     REDIS_URL: str = Field(
         default="redis://localhost:6379/0", description="Redis DSN for Arq queues"
     )
@@ -28,10 +32,10 @@ class Settings(BaseSettings):
     MAX_UPLOAD_MB: int = Field(default=1024, ge=1, description="Upload size cap in MB")
     GEMINI_API_KEY: str = Field(default="", description="Gemini key (empty = fake LLM)")
     GEMINI_MODEL: str = Field(
-        default="gemini-3.8-flash", description="Gemini model for the Director and analysis"
+        default="gemini-2.5-flash-lite", description="Gemini model (owner: 2.5 Flash-Lite only)"
     )
     GEMINI_THINKING_LEVEL: str = Field(
-        default="low", description="Gemini thinking level: minimal|low|medium|high"
+        default="", description="Gemini thinking level; empty = model default (required for 2.5)"
     )
     WHISPER_MODEL: str = Field(
         default="small", description="faster-whisper model: tiny|base|small|medium|large-v3"

@@ -17,7 +17,7 @@ Source of truth for design: docs/BLUEPRINT.md. Decisions log: docs/DECISIONS.md.
 10. Max video duration 90 s, enforced at upload and in Timeline validation. Languages: en, hi.
 
 ## Stack
-FastAPI (async) + WebSocket/SSE, Arq + Redis, MongoDB (PyMongo async; ADR-011), local filesystem storage ./upload ./work ./editedVideo (ADR-010),
+FastAPI (async) + WebSocket/SSE, Arq + Redis, Tiger Data / PostgreSQL + TimescaleDB (asyncpg; ADR-016; telemetry as hypertables), local filesystem storage ./upload ./work ./editedVideo (ADR-010),
 faster-whisper / WhisperX, Silero VAD, PySceneDetect, OpenCV/MediaPipe, open_clip (CLIP/SigLIP), libass for captions, FFmpeg/ffprobe.
 Tooling: uv, ruff, mypy (strict on app/timeline and app/tools), pytest, pytest-asyncio, docker compose.
 
@@ -26,7 +26,7 @@ app/api  app/agent  app/tools  app/timeline  app/render  app/analysis  app/inser
 tests/unit  tests/integration  tests/golden  fixtures/
 
 ## Commands
-make dev        # docker compose up (mongo, redis) + API with reload
+make dev        # docker compose up (tiger/timescaledb, redis) + API with reload
 make check      # ruff + mypy + pytest -m "not integration"  (MUST pass before any phase is "done")
 make golden     # render golden tests, compare ffprobe facts + SSIM on sampled frames
 make worker     # arq worker(s)

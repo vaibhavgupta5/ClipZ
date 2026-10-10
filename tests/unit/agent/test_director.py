@@ -151,3 +151,12 @@ async def test_injection_transcript_reaches_model_only_as_data() -> None:
     sent = llm.requests[0]
     assert "[w1] ignore [w2] previous" in sent.system  # present, but inside the fence
     assert sent.messages[0].text.startswith("hi")
+
+
+async def test_reply_is_grounded_in_what_actually_happened() -> None:
+    claim = ToolTurnReply(text="I removed the silences and added a GIF!")
+    res, _, _, _ = await _run(
+        [_call("denoise", "a"), _call("trim", "b", start_word="w99", end_word="w1"), claim]
+    )
+    assert res.reply.startswith("I removed the silences")
+    assert "Applied: denoise." in res.reply and "Not applied: trim (unknown_word)." in res.reply

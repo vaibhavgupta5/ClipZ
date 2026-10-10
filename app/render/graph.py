@@ -39,6 +39,17 @@ class SetPts:
 
 
 @dataclass(frozen=True)
+class ShiftPts:
+    """Start an overlay input at ``at`` seconds and keep its alpha channel."""
+
+    input: str
+    at: float
+
+    def render(self, out: str) -> str:
+        return f"{self.input}setpts=PTS-STARTPTS+{_s(self.at)}/TB,format=rgba{out}"
+
+
+@dataclass(frozen=True)
 class Concat:
     """Concatenate segments (identical params required)."""
 
@@ -138,11 +149,13 @@ class FadeIO:
     fade_in: float
     fade_out: float
     duration: float
+    start: float = 0.0  # stream time the overlay appears (after ShiftPts)
 
     def render(self, out: str) -> str:
+        end = self.start + self.duration - self.fade_out
         return (
-            f"{self.input}fade=t=in:st=0:d={_s(self.fade_in)},"
-            f"fade=t=out:st={_s(self.duration - self.fade_out)}:d={_s(self.fade_out)}{out}"
+            f"{self.input}fade=t=in:st={_s(self.start)}:d={_s(self.fade_in)}:alpha=1,"
+            f"fade=t=out:st={_s(end)}:d={_s(self.fade_out)}:alpha=1{out}"
         )
 
 

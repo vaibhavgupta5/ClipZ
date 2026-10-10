@@ -130,6 +130,8 @@ class AddCaptionsIn(BaseModel):
     highlight_color: str = Field(
         default="#FFD400", pattern=r"^#[0-9A-Fa-f]{6}$", description="#RRGGBB active word"
     )
+    uppercase: bool = Field(default=False, description="CAPITALS (punchy reel style)")
+    animation: Literal["none", "pop"] = Field(default="none", description="pop = word bounce")
 
 
 class DenoiseIn(BaseModel):
@@ -214,6 +216,140 @@ class AskUserOut(BaseModel):
 
     question: str
     options: list[str] = []
+
+
+class SearchAssetsIn(BaseModel):
+    """Search the local licensed libraries."""
+
+    model_config = Frozen
+
+    kind: Literal["image", "gif", "meme"] = Field(
+        description="image = stock photo, gif = animated reaction sticker, meme = popular template"
+    )
+    query: str = Field(min_length=1, max_length=80, description="2-4 words, e.g. 'money burning'")
+    limit: int = Field(default=5, ge=1, le=8)
+
+
+class AssetHit(BaseModel):
+    """One search result."""
+
+    model_config = Frozen
+
+    id: str
+    title: str
+    tags: list[str]
+    license: str
+    commercial_use: bool
+
+
+class SearchAssetsOut(BaseModel):
+    """Search results (empty = nothing relevant; then skip the insert)."""
+
+    model_config = Frozen
+
+    results: list[AssetHit]
+
+
+class InsertAssetIn(BaseModel):
+    """Place a library image/GIF at the end of a spoken word."""
+
+    model_config = Frozen
+
+    asset_id: str = Field(description="id from search_assets")
+    at_word: str = Field(pattern=r"^w\d+$", description="Insert appears as this word ends")
+    layout: (
+        Literal["cutaway_full", "pip_pop", "split_top", "lower_third_card", "blur_bg_contain"]
+        | None
+    ) = Field(default=None, description="Default: gif -> pip_pop, image/meme -> blur_bg_contain")
+    duration_ms: int | None = Field(default=None, ge=600, le=3000)
+
+
+class InsertMemeIn(BaseModel):
+    """Caption a popular meme template and place it at a punchline."""
+
+    model_config = Frozen
+
+    template_id: str = Field(description="meme id from search_assets(kind='meme')")
+    top_text: str = Field(default="", max_length=60, description="<= 6 words")
+    bottom_text: str = Field(default="", max_length=60, description="<= 6 words")
+    at_word: str = Field(pattern=r"^w\d+$")
+    duration_ms: int | None = Field(default=None, ge=1000, le=3000)
+
+
+class InsertPlanItem(BaseModel):
+    """One planned insert."""
+
+    model_config = Frozen
+
+    at_word: str = Field(pattern=r"^w\d+$", description="Appears as this word ends")
+    kind: Literal["image", "gif", "meme"]
+    query: str = Field(min_length=1, max_length=80, description="2-4 concrete words")
+    top_text: str = Field(default="", max_length=60, description="meme only, <= 6 words")
+    bottom_text: str = Field(default="", max_length=60, description="meme only, <= 6 words")
+
+
+class AddInsertsIn(BaseModel):
+    """Plan several inserts in one call; each is matched, placed or skipped with a reason."""
+
+    model_config = Frozen
+
+    items: list[InsertPlanItem] = Field(min_length=1, max_length=8)
+
+
+class InsertsOut(BaseModel):
+    """What was placed and what was skipped (and why)."""
+
+    model_config = Frozen
+
+    version: int
+    op: str = "add_inserts"
+    placed: list[dict[str, str]]
+    skipped: list[dict[str, str]]
+    summary: str
+
+
+class AddMusicIn(BaseModel):
+    """Background music bed from the royalty-free library."""
+
+    model_config = Frozen
+
+    genre: (
+        Literal[
+            "upbeat",
+            "lofi",
+            "cinematic",
+            "electronic",
+            "hiphop",
+            "acoustic",
+            "corporate",
+            "ambient",
+        ]
+        | None
+    ) = Field(default=None, description="upbeat suits birthdays, parties, celebrations")
+    mood: str = Field(default="", max_length=60, description="e.g. 'happy party', 'chill'")
+    level_db: float = Field(default=-20.0, ge=-30.0, le=-10.0, description="bed under the voice")
+
+
+class MusicOut(BaseModel):
+    """Chosen track."""
+
+    model_config = Frozen
+
+    version: int
+    op: str = "add_music"
+    track: str
+    genre: str
+    license: str
+    attribution: str
+    summary: str
+
+
+class RemoveInsertIn(BaseModel):
+    """Remove an insert by id (ins1, ins2...)."""
+
+    model_config = Frozen
+
+    insert_id: str = Field(min_length=1)
 
 
 class ToolDef(BaseModel):
@@ -333,6 +469,61 @@ TOOLS: list[ToolDef] = [
         input_model=ExportIn,
         output_model=ExportOut,
         mutating=False,
+    ),
+    ToolDef(
+        name="search_assets",
+        description="Find licensed images, animated reaction GIFs or meme templates in the "
+        "local libraries. Use before insert_asset / insert_meme.",
+        input_model=SearchAssetsIn,
+        output_model=SearchAssetsOut,
+        mutating=False,
+    ),
+    ToolDef(
+        name="insert_asset",
+        description="Show a library image or GIF as a word ends. Placement rules are enforced: "
+        "not in the first second, >= 2 s apart, inside the video.",
+        input_model=InsertAssetIn,
+        output_model=OpOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="insert_meme",
+        description="Caption a meme template with short top/bottom text and show it at a "
+        "punchline. Memes are personal-use only (blocked from monetised exports).",
+        input_model=InsertMemeIn,
+        output_model=OpOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="add_inserts",
+        description="Best way to add images, reaction GIFs and memes: give the whole plan in "
+        "one call (word, kind, query, meme text). Each item is matched in the licensed "
+        "libraries and placed by the rules, or skipped with a reason.",
+        input_model=AddInsertsIn,
+        output_model=InsertsOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="add_music",
+        description="Add a royalty-free background music bed (ducked under speech, looped, "
+        "faded out). Pick the genre that fits the video's mood.",
+        input_model=AddMusicIn,
+        output_model=MusicOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="remove_music",
+        description="Remove the background music.",
+        input_model=EmptyIn,
+        output_model=OpOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="remove_insert",
+        description="Remove an image/GIF/meme insert by id.",
+        input_model=RemoveInsertIn,
+        output_model=OpOut,
+        needs_preview=True,
     ),
     ToolDef(
         name="ask_user",

@@ -1,36 +1,26 @@
-"""Silero VAD adapter (lazy torch). Default pipeline uses EnergyVad instead."""
+"""Silero VAD via faster-whisper's bundled ONNX model (no torch, no download)."""
 
 from app.analysis.adapters import ModelUnavailable
 from app.analysis.models import SpeechRange
 
 
 class SileroVad:
-    """Neural VAD timestamps. Version: silero-1."""
+    """Neural speech ranges; robust to background music/chatter where energy VAD is not."""
 
-    VERSION = "silero-1"
+    VERSION = "silero-onnx-1"
 
-    def __init__(self) -> None:
+    def __init__(self, min_silence_ms: int = 300, pad_ms: int = 60) -> None:
         try:
-            import torch  # noqa: F401
+            from faster_whisper.vad import VadOptions, get_speech_timestamps
         except ImportError:
-            raise ModelUnavailable(
-                "torch", "torch --index-url https://download.pytorch.org/whl/cpu"
-            ) from None
-        self._torch = torch
+            raise ModelUnavailable("faster_whisper", "uv add faster-whisper") from None
+        self._get = get_speech_timestamps
+        self._opts = VadOptions(min_silence_duration_ms=min_silence_ms, speech_pad_ms=pad_ms)
 
     def detect(self, wav_path: str) -> list[SpeechRange]:
-        """Speech ranges via Silero VAD (16 kHz wav)."""
-        model, utils = self._torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", trust_repo=False
-        )
-        (get_speech_timestamps, _, _, _, _) = utils
-        import wave
+        """Speech ranges (seconds) for a 16 kHz mono wav."""
+        from app.analysis.asr_whisper import _load_pcm16k
 
-        with wave.open(wav_path, "rb") as w:
-            assert w.getframerate() == 16000 and w.getnchannels() == 1
-            import numpy as np
-
-            samples = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype("float32")
-            samples = samples / 32768.0
-        stamps = get_speech_timestamps(samples, model, sampling_rate=16000)
+        audio = _load_pcm16k(wav_path)
+        stamps = self._get(audio, self._opts)
         return [SpeechRange(start=s["start"] / 16000, end=s["end"] / 16000) for s in stamps]

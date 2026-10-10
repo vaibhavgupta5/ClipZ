@@ -95,6 +95,12 @@ def main() -> None:
     ap.add_argument("--api", default="http://localhost:8000")
     ap.add_argument("--video", default="fixtures/synth/speech_en.mp4")
     ap.add_argument("--key", default=f"demo-{uuid.uuid4().hex[:8]}", help="X-API-Key (stub auth)")
+    ap.add_argument(
+        "--chat",
+        action="append",
+        help="custom chat turn(s) instead of the MVP script; export always runs last",
+    )
+    ap.add_argument("--monetized", action="store_true", help="export as monetised")
     args = ap.parse_args()
     video = Path(args.video)
     if not video.exists():
@@ -124,15 +130,18 @@ def main() -> None:
         )
         log("summary", tl["summary"].replace("\n", " | "))
 
-        events = chat(c, pid, CHAT_EDIT)
-        if any(n == "error" and "GEMINI_API_KEY" in str(d) for n, d in events):
-            log("NOTE", "no GEMINI_API_KEY in the stack: skipping model-driven chat turns")
-        else:
-            assert any(n == "timeline_version_created" for n, _ in events), "edit made no version"
-            chat(c, pid, "make captions bigger")
-            chat(c, pid, "undo")
-
-        final = chat(c, pid, "export")
+        turns = args.chat or [CHAT_EDIT, "make captions bigger", "undo"]
+        for i, text in enumerate(turns):
+            events = chat(c, pid, text)
+            if any(n == "error" and "GEMINI_API_KEY" in str(d) for n, d in events):
+                log("NOTE", "no GEMINI_API_KEY in the stack: skipping model-driven chat turns")
+                break
+            if i == 0 and not args.chat:
+                assert any(n == "timeline_version_created" for n, _ in events), "no edit made"
+        tl_now = c.get(f"/projects/{pid}/timeline").json()
+        log("timeline", tl_now["summary"].replace("\n", " | "))
+        export_cmd = "export" if args.monetized else "export the final video, not monetized"
+        final = chat(c, pid, export_cmd)
         ready_evt = next((d for n, d in final if n == "render_ready"), None)
         if ready_evt is None:
             raise SystemExit("export did not finish within CHAT_PREVIEW_WAIT_S")

@@ -133,7 +133,7 @@ async def test_gemini_tool_turn_and_text_sink() -> None:
     deltas: list[str] = []
     reply = await llm.complete_with_tools(_request(), on_text=deltas.append)
     assert deltas == ["On it."] and reply.calls[0].name == "denoise"
-    assert fake.bodies[0]["model"] == "gemini-3.8-flash"
+    assert fake.bodies[0]["model"] == "gemini-2.5-flash-lite"
 
 
 async def test_gemini_plain_completion_for_analysis() -> None:

@@ -70,3 +70,17 @@ def test_word_highlight_emits_one_event_per_word_with_style() -> None:
     assert "{\\c&H0000FF00&}hi{\\r} there" in events[0]
     assert "hi {\\c&H0000FF00&}there{\\r}" in events[1]
     assert ",120,&H00FFFFFF," in doc
+
+
+def test_uppercase_pop_animation_on_active_word() -> None:
+    from app.render.captions_ass import CaptionCue, ass_for_cues
+
+    cues = [
+        CaptionCue(id="w1", start=0.0, end=0.4, text="ship"),
+        CaptionCue(id="w2", start=0.5, end=0.9, text="it"),
+    ]
+    doc = ass_for_cues(
+        cues, words_per_line=2, mode="word_highlight", uppercase=True, animation="pop"
+    )
+    first = next(ln for ln in doc.splitlines() if ln.startswith("Dialogue:"))
+    assert "\\t(0,90,\\fscx112\\fscy112)" in first and "SHIP{\\r} IT" in first

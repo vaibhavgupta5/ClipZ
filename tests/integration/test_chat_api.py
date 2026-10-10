@@ -99,7 +99,8 @@ async def test_chat_turn_edits_previews_and_logs(monkeypatch: pytest.MonkeyPatch
         names = [n for n, _ in events]
         assert names.count("tool_call") == 2 and names.count("timeline_version_created") == 2
         assert "preview_queued" in names and names[-1] == "done"
-        assert events[-1][1]["reply"] == "Yellow captions on, audio cleaned."
+        assert events[-1][1]["reply"].startswith("Yellow captions on, audio cleaned.")
+        assert "Applied: add_captions, denoise." in events[-1][1]["reply"]
 
         tl = (await client.get(f"/projects/{pid}/timeline")).json()
         assert tl["version"] == 3
@@ -119,6 +120,19 @@ async def test_chat_turn_edits_previews_and_logs(monkeypatch: pytest.MonkeyPatch
         assert render is not None and render.profile == "preview"
         job = await db_ops.find_one(db, Job, {"idempotency_key": f"render:{render.id}"})
         assert job is not None and job.type == "render"
+
+        # Tiger Data telemetry: tool calls linked to the run, rollups and project history
+        from app.models import ToolCallLog
+
+        calls = await db_ops.find(db, ToolCallLog, {"run_id": run.id})
+        assert sorted(c.tool for c in calls) == ["add_captions", "denoise"]
+        assert all(c.ok for c in calls)
+        overview = (await client.get("/metrics/overview?hours=2")).json()
+        assert overview["totals"][0]["runs"] == 1
+        assert overview["totals"][0]["cost_usd"] == pytest.approx(run.cost_usd)
+        assert {t["tool"] for t in overview["tools"]} == {"add_captions", "denoise"}
+        project_runs = (await client.get(f"/projects/{pid}/metrics")).json()["runs"]
+        assert [t["tool"] for t in project_runs[0]["tool_calls"]] == ["add_captions", "denoise"]
 
         # next turn sees the prior conversation; bare "undo" skips the model
         events = await _chat(client, pid, "undo")
@@ -146,10 +160,13 @@ async def test_follow_renders_streams_progress_then_ready() -> None:
 
     from app.agent.director import Event
     from app.api.chat import _follow_renders
+    from app.models import Project, User
 
     db = db_ops.get_db()
+    user = await db_ops.insert(db, User(api_key_hash="follow"))
+    project = await db_ops.insert(db, Project(user_id=user.id, name="follow"))
     render = await db_ops.insert(
-        db, Render(project_id=uuid.uuid4(), timeline_version_id=uuid.uuid4(), profile="preview")
+        db, Render(project_id=project.id, timeline_version_id=uuid.uuid4(), profile="preview")
     )
     await db_ops.insert(
         db,

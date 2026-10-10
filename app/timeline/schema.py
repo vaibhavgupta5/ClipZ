@@ -67,6 +67,10 @@ class CaptionConfig(BaseModel):
     highlight_color: str = Field(
         default="#FFD400", pattern=HEX_COLOR, description="Active-word colour (word_highlight)"
     )
+    uppercase: bool = Field(default=False, description="Render caption text in capitals")
+    animation: Literal["none", "pop"] = Field(
+        default="none", description="pop = active word scales 85% -> 112% -> 100%"
+    )
 
 
 class Zoom(BaseModel):

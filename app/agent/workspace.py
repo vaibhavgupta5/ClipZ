@@ -2,13 +2,16 @@
 
 import json
 import uuid
+from pathlib import Path
 
 from app import db as db_ops
 from app.analysis.models import AnalysisBundle
 from app.db import Database
 from app.models import Analysis
 from app.models import Timeline as TimelineRow
+from app.providers.local import AssetCatalog
 from app.services.renders import request_render
+from app.settings import get_settings
 from app.storage import Storage
 from app.timeline.versions import get_current, load_version, save_version
 from app.timeline.versions import redo as redo_version
@@ -43,13 +46,17 @@ class DbWorkspace:
         self.project_id = project_id
         self.row = timeline
         self.bundle = bundle
+        settings = get_settings()
+        self.catalog = AssetCatalog(
+            settings.ASSETS_DIR, Path(settings.WORK_DIR) / "cache" / "memes"
+        )
 
     async def state(self) -> ToolState:
         """Current timeline + VAD speech + filler candidates."""
         tl = await load_version(self.db, self.row.id, await self.current_version())
-        if self.bundle is None:
-            return ToolState(tl)
-        return ToolState(tl, list(self.bundle.speech), list(self.bundle.fillers))
+        speech = list(self.bundle.speech) if self.bundle else []
+        fillers = list(self.bundle.fillers) if self.bundle else []
+        return ToolState(tl, speech, fillers, catalog=self.catalog)
 
     async def current_version(self) -> int:
         """Current version pointer."""

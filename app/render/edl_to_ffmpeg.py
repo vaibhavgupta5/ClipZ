@@ -2,6 +2,7 @@
 
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 from app.render.errors import RenderError
 from app.render.graph import (
@@ -15,6 +16,7 @@ from app.render.graph import (
     Scale,
     ScaleCrop,
     SetPts,
+    ShiftPts,
     Trim,
     ZoomPunch,
 )
@@ -85,17 +87,38 @@ def encoder_args(profile: RenderProfile, encoder: str) -> list[str]:
     return ["-c:v", "libx264", "-preset", profile.preset, "-crf", str(profile.crf)]
 
 
-def build_inputs(master_path: str, image_loops: dict[str, float]) -> list[str]:
-    """Master input + looped image inputs (GIF/video overlays land in Phase 7)."""
+_STILL = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+_VIDEO = {".mp4", ".mov", ".webm", ".mkv"}
+
+
+def overlay_input_args(path: str, dur: float) -> list[str]:
+    """Input flags by kind: stills loop as frames, GIFs/videos repeat their animation."""
+    suffix = Path(path).suffix.lower()
+    t = ["-t", f"{dur:.3f}"]
+    if suffix == ".gif":
+        return ["-ignore_loop", "0", *t, "-i", path]
+    if suffix in _VIDEO:
+        return ["-stream_loop", "-1", *t, "-i", path]
+    if suffix in _STILL:
+        return ["-loop", "1", *t, "-i", path]
+    raise RenderError("bad_overlay", f"unsupported overlay file type {suffix!r}")
+
+
+def build_inputs(
+    master_path: str, overlays: dict[str, float] | list[tuple[str, float]]
+) -> list[str]:
+    """Master input + one input per overlay (order = overlay label order)."""
     args = ["-i", master_path]
-    for path, dur in image_loops.items():
-        args += ["-loop", "1", "-t", f"{dur:.3f}", "-i", path]
+    items = overlays.items() if isinstance(overlays, dict) else overlays
+    for path, dur in items:
+        args += overlay_input_args(path, dur)
     return args
 
 
-def _at(tl: Timeline, anchor_word: str, offset_ms: int = 0) -> float:
+def _at(tl: Timeline, anchor_word: str, offset_ms: int = 0, where: str = "start") -> float:
+    """Zooms land on a word's start; overlays appear as their word ends (schema)."""
     try:
-        return snap.output_time_of(tl, anchor_word) + offset_ms / 1000.0
+        return snap.output_time_of(tl, anchor_word, where) + offset_ms / 1000.0
     except OpError as exc:
         raise RenderError("dangling_anchor", f"overlay/zoom anchor lost: {exc}") from None
 
@@ -146,23 +169,26 @@ def build_video_filter(
     if overlay_windows is None:
         overlay_windows = []
         for overlay in tl.overlays:
-            at = _at(tl, overlay.anchor_word, overlay.offset_ms)
+            at = _at(tl, overlay.anchor_word, overlay.offset_ms, "end")
             overlay_windows.append((overlay, at, at + overlay.duration_ms / 1000.0))
     for overlay, at, end in overlay_windows:
-        if overlay.asset not in asset_labels:
+        source = asset_labels.get(overlay.id) or asset_labels.get(overlay.asset)
+        if source is None:
             raise RenderError("unknown_asset", f"no local file for overlay asset {overlay.asset}")
-        over = asset_labels[overlay.asset]
+        over = graph.add(ShiftPts(source, at))  # animation starts when the insert appears
         w, h = profile.width, profile.height
         if overlay.layout == "cutaway_full":
             scaled = graph.add(ScaleCrop(over, w, h))
             main = graph.add(OverlayAt(_lbl(main), _lbl(scaled), 0, 0, at, end))
         elif overlay.layout == "pip_pop":
-            pip_w = w // 2
+            # Sticker in the safe upper-centre area (Reels UI covers the right rail).
+            pip_w = int(w * 0.42)
             scaled = graph.add(Scale(over, pip_w, -2))
-            main = graph.add(OverlayAt(_lbl(main), _lbl(scaled), w - pip_w - 20, 40, at, end))
+            faded = graph.add(FadeIO(_lbl(scaled), 0.12, 0.12, end - at, start=at))
+            main = graph.add(OverlayAt(_lbl(main), _lbl(faded), "(W-w)/2", int(h * 0.16), at, end))
         elif overlay.layout == "split_top":
             scaled = graph.add(Scale(over, w, h // 2))
-            faded = graph.add(FadeIO(_lbl(scaled), 0.15, 0.15, end - at))
+            faded = graph.add(FadeIO(_lbl(scaled), 0.15, 0.15, end - at, start=at))
             main = graph.add(OverlayAt(_lbl(main), _lbl(faded), 0, 0, at, end))
         elif overlay.layout == "lower_third_card":
             scaled = graph.add(Scale(over, int(w * 0.85), -2))

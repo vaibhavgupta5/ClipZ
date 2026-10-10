@@ -46,11 +46,39 @@ async def test_unsupported_language_redecodes_as_likelier_of_en_hi(
 ) -> None:
     model = _FakeModel("pt")
     tx = await _transcriber(model, monkeypatch).transcribe("x.wav", "auto")
-    assert model.calls == [None, "hi"]  # hi (0.2) beats en (0.1)
-    assert tx.language == "hi" and {w.lang for w in tx.words} == {"hi"}
+    assert model.calls == [None, "en", "hi"]  # both decoded; equal confidence keeps en
+    assert tx.language == "en"
 
 
 async def test_explicit_language_is_not_redecoded(monkeypatch: pytest.MonkeyPatch) -> None:
     model = _FakeModel("pt")
     await _transcriber(model, monkeypatch).transcribe("x.wav", "en")
     assert model.calls == ["en"]
+
+
+class _Hinglish:
+    """Detects hi with low confidence; en decode is confident, hi decode is garbage."""
+
+    def __init__(self) -> None:
+        self.calls: list[str | None] = []
+
+    def transcribe(self, audio: Any, language: str | None, **_: Any) -> tuple[Any, Any]:
+        self.calls.append(language)
+        prob = {None: 0.3, "en": 0.85, "hi": 0.2}[language]
+        words = [SimpleNamespace(word=" bhai", start=0.0, end=0.3, probability=prob)]
+        info = SimpleNamespace(language="hi", language_probability=0.69, all_language_probs=[])
+        return iter([SimpleNamespace(words=words)]), info
+
+
+async def test_hinglish_prefers_confident_roman_decode(monkeypatch: pytest.MonkeyPatch) -> None:
+    model = _Hinglish()
+    tx = await _transcriber(model, monkeypatch).transcribe("x.wav", "auto")  # type: ignore[arg-type]
+    assert model.calls == [None, "en", "hi"]
+    assert tx.language == "hinglish" and tx.words[0].lang == "en"
+
+
+def test_hinglish_fillers_merge_both_lists() -> None:
+    from app.analysis.fillers import FillerFinder
+
+    phrases = {" ".join(p) for p in FillerFinder("hinglish").phrases}
+    assert {"matlab", "um"} <= phrases
