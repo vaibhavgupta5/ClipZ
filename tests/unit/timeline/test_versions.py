@@ -1,0 +1,48 @@
+"""Versioning tests: immutable snapshots, undo/redo pointers, branch on edit-after-undo."""
+
+from app.timeline.schema import CaptionConfig, OutputSpec, Timeline, VideoClip
+from app.timeline.transcript import Transcript, Word
+from app.timeline.versions import VersionLog
+
+
+def _tl() -> Timeline:
+    return Timeline(
+        project_id="00000000-0000-0000-0000-000000000000",
+        transcript=Transcript(
+            words=[Word(id="w1", start=0.0, end=0.4, text="x", display_text="x", lang="en")]
+        ),
+        video_clips=[VideoClip(id="c1", asset="a1", src_in=0.0, src_out=1.0)],
+        captions=CaptionConfig(),
+        output=OutputSpec(),
+    )
+
+
+def test_append_undo_redo_round_trip() -> None:
+    log = VersionLog().append(_tl()).append(_tl())
+    assert log.current == 2
+    assert log.undo().current == 1
+    assert log.redo().current == 2
+    assert log.get(1) is not None and log.get(2) is not None
+
+
+def test_undo_at_first_version_stays() -> None:
+    log = VersionLog().append(_tl())
+    assert log.undo().current == 1
+
+
+def test_edit_after_undo_branches_keeping_history() -> None:
+    log = VersionLog().append(_tl()).append(_tl())
+    log = log.undo()  # pointer at 1, v2 kept
+    branched = log.append(_tl())  # v3 with parent 1
+    assert branched.current == 3
+    assert branched.parent_of(3) == 1
+    assert branched.get(2) is not None  # old redo chain preserved
+    assert branched.redo().current == 3  # no redo after branch
+
+
+def test_version_log_is_immutable() -> None:
+    log = VersionLog().append(_tl())
+    grown = log.append(_tl())
+    assert len(log.entries) == 1  # original untouched
+    assert len(grown.entries) == 2
+    assert log.current == 1 and grown.current == 2
