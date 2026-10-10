@@ -52,7 +52,7 @@ aside { border-right: 1px solid var(--line); background: var(--panel); }
 .msg { margin: 0 0 14px; white-space: pre-wrap; word-wrap: break-word; }
 .msg.user { color: var(--text); }
 .msg.user::before { content: "> "; color: var(--accent); font-weight: 700; }
-.msg.assistant::before { content: "⏺ "; color: var(--text); }
+.msg.assistant::before { content: "● "; color: var(--text); }
 .msg.brain::before { content: "✻ "; color: var(--blue); }
 .msg.sys { color: var(--dim); }
 .tool { margin: 0 0 6px 2px; color: var(--dim); }
@@ -131,7 +131,7 @@ pre.summary { white-space: pre-wrap; font: 12px/1.6 var(--mono); background: var
     <div class="composer">
       <div class="modes">
         <button class="mode on" data-mode="brainstorm">✻ Brainstorm</button>
-        <button class="mode" data-mode="edit">⏺ Edit</button>
+        <button class="mode" data-mode="edit">● Edit</button>
         <span class="hint" id="modehint">Talk it through. Nothing is edited.</span>
       </div>
       <div class="row">
