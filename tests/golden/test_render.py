@@ -105,7 +105,7 @@ async def _render_frame(
     GOLDEN_DIR.mkdir(exist_ok=True)
     ref = GOLDEN_DIR / ref_name
     store = get_storage(get_settings())
-    with tempfile.TemporaryDirectory(prefix="reelforge-golden-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="clipz-golden-") as tmp:
         master = str(Path(tmp) / "master.mp4")
         await _asyncio.to_thread(
             Path(master).write_bytes, Path("fixtures/synth/bars_5s.mp4").read_bytes()

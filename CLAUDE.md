@@ -1,4 +1,4 @@
-# ReelForge: Agentic Reel Editor Backend
+# ClipZ: Agentic Reel Editor Backend
 
 Python 3.12 + FFmpeg. An LLM agent edits short vertical videos (max 90 s) via chat.
 Source of truth for design: docs/BLUEPRINT.md. Decisions log: docs/DECISIONS.md. Progress: docs/PROGRESS.md.

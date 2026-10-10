@@ -73,7 +73,7 @@ async def test_readyz_uses_real_checkers_by_default(monkeypatch: pytest.MonkeyPa
     dead = Settings(
         TIGER_DATABASE_URL="postgresql://x:y@127.0.0.1:1/none",
         REDIS_URL="redis://127.0.0.1:1/0",
-        UPLOAD_DIR="/proc/reelforge-not-writable",
+        UPLOAD_DIR="/proc/clipz-not-writable",
     )
     monkeypatch.setattr(health_module, "get_settings", lambda: dead)
     transport = ASGITransport(app=create_app())

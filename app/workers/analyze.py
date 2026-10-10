@@ -256,7 +256,7 @@ async def _run_analysis(
     llm: LLMProvider | None,
 ) -> dict[str, object]:
     await _set_job(db, jid, "running", 0.1)
-    with tempfile.TemporaryDirectory(prefix="reelforge-analysis-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="clipz-analysis-") as tmp:
         master_local = Path(tmp) / "master.mp4"
         wav_local = Path(tmp) / "asr.wav"
         try:

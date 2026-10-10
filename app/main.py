@@ -39,7 +39,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.warning("database migration failed", error=str(exc))
         yield
 
-    app = FastAPI(title="ReelForge", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="ClipZ", version="0.1.0", lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,

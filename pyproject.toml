@@ -1,7 +1,7 @@
 [project]
-name = "reelforge"
+name = "clipz"
 version = "0.1.0"
-description = "ReelForge: agentic reel-editing backend (LLM edits Timeline JSON, deterministic FFmpeg renderer)"
+description = "ClipZ: agentic reel-editing backend (LLM edits Timeline JSON, deterministic FFmpeg renderer)"
 readme = "CLAUDE.md"
 requires-python = "==3.12.*"
 dependencies = [

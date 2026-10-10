@@ -36,12 +36,12 @@
 - Create: `tests/__init__.py`, `tests/unit/__init__.py`, `tests/integration/__init__.py`, `tests/golden/__init__.py`
 
 **Interfaces:**
-- Produces: `make check` (ruff + mypy + pytest unit), `make dev`, `make worker`, `make golden` (stub passing) targets; `uv` project named `reelforge` requiring Python 3.12.
+- Produces: `make check` (ruff + mypy + pytest unit), `make dev`, `make worker`, `make golden` (stub passing) targets; `uv` project named `clipz` requiring Python 3.12.
 
 - [ ] **Step 1:** Write `pyproject.toml` (uv project, deps: fastapi, uvicorn, sqlalchemy[asyncio]+asyncpg, alembic, arq, redis, boto3, pydantic v2, pydantic-settings, structlog, opentelemetry SDK pkgs, pytest/pytest-asyncio/httpx/anyio in dev; ruff + mypy config, pytest `integration` marker).
 - [ ] **Step 2:** Write `Makefile`, `.python-version` (`3.12`), `.gitignore`, `.dockerignore`, `.pre-commit-config.yaml`, `CLAUDE.md` (verbatim from prompt.md §3), `docs/DECISIONS.md` (ADR-001..003: in-place build, uv-managed 3.12, pgvector pg16 image), `docs/PROGRESS.md` (Phase 0 in progress).
 - [ ] **Step 3:** Run `uv venv --python 3.12 && uv sync` then `make check`. Expected: PASS (no tests yet → pytest exit 5? configure `addopts` so empty suite passes or add a placeholder test; choose placeholder `tests/unit/test_sanity.py::test_import_app`).
-- [ ] **Step 4:** Commit: `git add -A && git commit -m "chore: scaffold reelforge repo with uv, ruff, mypy, pytest"`.
+- [ ] **Step 4:** Commit: `git add -A && git commit -m "chore: scaffold clipz repo with uv, ruff, mypy, pytest"`.
 
 ### Task 2: docker-compose + Dockerfiles
 

@@ -270,7 +270,7 @@ async def test_no_temp_dirs_leak() -> None:
     import asyncio as _asyncio
     import glob
 
-    pattern = "/tmp/reelforge-ingest-*"  # noqa: S108 — asserting worker temp cleanup
+    pattern = "/tmp/clipz-ingest-*"  # noqa: S108 — asserting worker temp cleanup
     before = set(await _asyncio.to_thread(glob.glob, pattern))
     out = await _run_fixture("bars_5s")
     try:

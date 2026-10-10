@@ -1,7 +1,7 @@
 # Decisions (ADR style: context, decision, consequences)
 
 ## ADR-001: Build in place under `flowjob/`
-- Context: The prompt pack setup says `mkdir reelforge`, but the working repo is `flowjob/`.
+- Context: The prompt pack setup says `mkdir clipz`, but the working repo is `flowjob/`.
 - Decision: Build in place. Package layout is `app/...` either way, so the folder name is cosmetic.
 - Consequences: All paths in docs refer to the repo root as-is.
 
@@ -17,7 +17,7 @@
 
 ## ADR-005: Garage instead of MinIO for local S3-compatible storage
 - Context: Blueprint says MinIO local. MinIO community edition is archived/EOL (Feb 2026); `minio/minio` is gone from Docker Hub and anonymous Quay pulls now return 401 (verified 2026-10-09; see https://www.stablebuild.com/blog/minio-pulls-from-quay-now-return-unauthorized and https://github.com/minio/minio).
-- Decision: Single-node Garage v2.4.1 (`dxflrs/garage:v2.4.1`) for local dev only; docs: https://garagehq.deuxfleurs.fr/documentation/quick-start/ (retrieved 2026-10-09). One-shot `garage-init` container assigns layout, creates bucket `reelforge`, imports static dev creds (minioadmin/minioadmin). Prod still R2/S3 via the same `Storage` abstraction — no app code changes.
+- Decision: Single-node Garage v2.4.1 (`dxflrs/garage:v2.4.1`) for local dev only; docs: https://garagehq.deuxfleurs.fr/documentation/quick-start/ (retrieved 2026-10-09). One-shot `garage-init` container assigns layout, creates bucket `clipz`, imports static dev creds (minioadmin/minioadmin). Prod still R2/S3 via the same `Storage` abstraction — no app code changes.
 - Consequences: `S3_ENDPOINT` default unchanged (`http://localhost:9000` host-mapped to Garage's `:3900`); Garage is AGPLv3 — acceptable for local dev, never shipped to prod.
 
 ## ADR-004: mypy strict globally in Phase 0
@@ -48,7 +48,7 @@
 ## ADR-011: MongoDB instead of Postgres + pgvector (supersedes ADR-003)
 - Context: Owner decision 2026-10-10: local MongoDB from docker.
 - Decision: `mongo:8.0` in compose (host port 27018, because 27017 is often used by another local mongo), PyMongo's native `AsyncMongoClient` (one client per event loop, 5 s server-selection timeout), pydantic documents in app/models.py with UUID `_id`. Uniqueness (job idempotency keys, (timeline_id, version), analysis cache key, one timeline per project) is enforced by indexes created at API/worker startup; version allocation retries on duplicate key. SQLAlchemy, asyncpg, pgvector and Alembic removed; there are no migrations, new fields need defaults.
-- Consequences: No vector search: Phase 7 ranking over a few dozen local assets runs in-process. Integration tests use a throwaway `reelforge_it_<random>` database per test.
+- Consequences: No vector search: Phase 7 ranking over a few dozen local assets runs in-process. Integration tests use a throwaway `clipz_it_<random>` database per test.
 
 ## ADR-012: Gemini is the only LLM (supersedes ADR-008)
 - Context: Owner decision 2026-10-10: remove Anthropic, use Gemini only. Docs read 2026-10-10: https://ai.google.dev/gemini-api/docs/function-calling, https://ai.google.dev/gemini-api/docs/interactions, https://ai.google.dev/api/interactions-api; request/response shapes confirmed against the installed google-genai 2.29.0 SDK types (the docs page does not specify stateless multi-turn input).

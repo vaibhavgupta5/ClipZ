@@ -107,7 +107,7 @@ async def _dub(
     master_path = get_storage(settings).path_for(master.storage_key)
     tl = await load_version(db, tid, await get_current(db, tid))
     source = tl.transcript.language if tl.transcript.language in ("en", "hi") else "auto"
-    with tempfile.TemporaryDirectory(prefix="reelforge-dub-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="clipz-dub-") as tmp:
         speech = Path(tmp) / "speech.mp3"
         await asyncio.to_thread(_extract_speech, str(master_path), str(speech))
         audio = speech.read_bytes()

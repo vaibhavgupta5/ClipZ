@@ -15,7 +15,7 @@ Date: 2026-10-10. Plan: `docs/plans/PHASE-2.md`.
 - rotated (landscape, no metadata — ffmpeg 9 CLI can't write rotate tags): passes through; limitation recorded in Phase-0 gate.
 - silent_5s: accepted; silent 16 kHz mono ASR audio synthesized; waveform peaks all zero.
 - mono_5s: upmixed to stereo.
-- bars_91s → `too_long`; corrupt bytes → `probe_failed`; sha mismatch → rejected; idempotent re-run reuses assets (`reused: true`, row counts equal); no `/tmp/reelforge-ingest-*` leaks.
+- bars_91s → `too_long`; corrupt bytes → `probe_failed`; sha mismatch → rejected; idempotent re-run reuses assets (`reused: true`, row counts equal); no `/tmp/clipz-ingest-*` leaks.
 
 ## Security review (hunt-file-upload checklist)
 - **FFmpeg HLS/concat SSRF (real finding, fixed):** container allowlist (`mov/mp4/mkv/webm/avi` families; playlists rejected with code `container`) + `-protocol_whitelist file` on every ffprobe/ffmpeg invocation.

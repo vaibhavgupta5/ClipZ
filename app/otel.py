@@ -5,7 +5,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
-_service_name = "reelforge-api"
+_service_name = "clipz-api"
 
 
 def setup_tracing(otlp_endpoint: str = "") -> None:

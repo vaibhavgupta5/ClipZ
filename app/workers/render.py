@@ -155,7 +155,7 @@ async def _run_render(
             holder["db"] = frac
             push(round(frac, 3))
 
-    with tempfile.TemporaryDirectory(prefix="reelforge-render-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="clipz-render-") as tmp:
         out = await render_timeline(
             timeline, str(master_path), asset_files, profile, store, tmp, _progress
         )

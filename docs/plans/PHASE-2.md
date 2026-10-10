@@ -64,7 +64,7 @@
 **Interfaces:** `ingest_asset(ctx, *, job_id, project_id, storage_key, sha256)` stages: download→probe→validate→normalize→proxy→asr audio+waveform→asset rows→job done; progress 0.1/0.5/0.8/0.9/1.0 on jobs row; `enqueue_ingest(redis_url, payload) -> job_id`.
 
 - [ ] Steps 1–2: Failing integration tests (need worker code path but NOT a running worker: call `ingest_asset` directly with fake ctx — no Redis needed).
-- [ ] Step 3: Implement (tempfile.TemporaryDirectory under `/tmp/reelforge-ingest-*`; finally-cleanup; per-stage progress fn).
+- [ ] Step 3: Implement (tempfile.TemporaryDirectory under `/tmp/clipz-ingest-*`; finally-cleanup; per-stage progress fn).
 - [ ] Step 4: PASS vs fixtures. Step 5: Commit `feat: add ingest worker pipeline`.
 
 ### Task 5: Upload API + SSE progress

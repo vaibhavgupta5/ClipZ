@@ -82,7 +82,7 @@ async def test_full_render_with_hostile_captions() -> None:
     store = get_storage(get_settings())
 
     def _run() -> str:
-        with tempfile.TemporaryDirectory(prefix="reelforge-fuzz-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="clipz-fuzz-") as tmp:
             master = str(Path(tmp) / "master.mp4")
             Path(master).write_bytes(Path("fixtures/synth/bars_5s.mp4").read_bytes())
             out = asyncio.run(render_timeline(tl, master, {}, PREVIEW, store, tmp, lambda f: None))

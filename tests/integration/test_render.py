@@ -60,7 +60,7 @@ async def _render(tl: Timeline, profile=PREVIEW):  # type: ignore[no-untyped-def
     import tempfile
 
     store = get_storage(get_settings())
-    with tempfile.TemporaryDirectory(prefix="reelforge-render-test-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="clipz-render-test-") as tmp:
         master = str(Path(tmp) / "master.mp4")
         await _asyncio.to_thread(Path(master).write_bytes, _master_bytes())
         return await render_timeline(tl, master, {}, profile, store, tmp, lambda f: None)
@@ -160,7 +160,7 @@ async def test_animated_and_still_inserts_keep_the_timeline_duration() -> None:
 
     tl, _ = ops.split(_timeline(), "w3")  # two segments, inserts in the second
     store = get_storage(get_settings())
-    with tempfile.TemporaryDirectory(prefix="reelforge-ov-test-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="clipz-ov-test-") as tmp:
         gif = Path(tmp) / "sticker.gif"
         await _asyncio.to_thread(
             subprocess.run,

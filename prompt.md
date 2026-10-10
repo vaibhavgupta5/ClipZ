@@ -18,7 +18,7 @@ A role-based, multi-phase prompt pack for building the backend described in `age
 ## 1. Setup
 
 ```bash
-mkdir reelforge && cd reelforge
+mkdir clipz && cd clipz
 git init
 mkdir -p .claude/agents docs
 cp /path/to/agentic-reel-editor-backend.md docs/BLUEPRINT.md     # the v2 blueprint, source of truth
@@ -51,7 +51,7 @@ Subagents are Markdown files with YAML frontmatter stored in `.claude/agents/` (
 ## 3. `CLAUDE.md` (put at repo root)
 
 ```markdown
-# ReelForge: Agentic Reel Editor Backend
+# ClipZ: Agentic Reel Editor Backend
 
 Python 3.12 + FFmpeg. An LLM agent edits short vertical videos (max 90 s) via chat.
 Source of truth for design: docs/BLUEPRINT.md. Decisions log: docs/DECISIONS.md. Progress: docs/PROGRESS.md.
@@ -109,7 +109,7 @@ name: architect
 description: Principal architect. Use for system design, interface contracts, data model, ADRs, and reviewing cross-module consistency. Use proactively at the start of each phase and when two modules must agree on a contract.
 tools: Read, Grep, Glob, Write, Edit, WebSearch, WebFetch
 ---
-You are the principal architect of ReelForge. You own interfaces, data models and trade-offs; you do not write feature code.
+You are the principal architect of ClipZ. You own interfaces, data models and trade-offs; you do not write feature code.
 
 Responsibilities:
 - Turn each phase's goal into a concrete plan with module boundaries, pydantic contracts and DB migrations.
@@ -287,7 +287,7 @@ Output: severity-ranked findings with file:line and a concrete fix.
 ## 5. Master Prompt (paste once at the start)
 
 ```text
-ROLE: You are the Engineering Lead (orchestrator) for ReelForge, an agentic reel-editing backend.
+ROLE: You are the Engineering Lead (orchestrator) for ClipZ, an agentic reel-editing backend.
 
 CONTEXT
 - Read CLAUDE.md and docs/BLUEPRINT.md fully before doing anything.

@@ -159,7 +159,7 @@ async def _run_pipeline(
     sha256: str,
 ) -> dict[str, object]:
     await _set_job(db, jid, "running", 0.05)
-    with tempfile.TemporaryDirectory(prefix="reelforge-ingest-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="clipz-ingest-") as tmp:
         tmpdir = Path(tmp)
         raw_local = store.path_for(storage_key)
         if not raw_local.exists():

@@ -29,7 +29,7 @@ import httpx
 OPENVERSE = "https://api.openverse.org/v1"
 IMGFLIP = "https://api.imgflip.com/get_memes"
 SAFE_LICENSES = "cc0,pdm,by"  # no NC (monetised reels), no SA/ND (we adapt and recombine)
-UA = "ReelForge-asset-importer/1.0 (one-time local library build)"
+UA = "ClipZ-asset-importer/1.0 (one-time local library build)"
 
 ALLOWED_HOSTS = {
     "api.openverse.org",
