@@ -1,6 +1,6 @@
 """Studio: the web app page plus the small read APIs and brainstorm chat it needs.
 
-GET  /app                              the single-page studio (static HTML, no build step)
+GET  /app                              the ClipZ studio page (static HTML, no build step)
 GET  /projects                         the caller's projects, newest first, with status
 GET  /projects/{id}/renders            previews/exports, newest first
 POST /projects/{id}/brainstorm         talk the edit through with the Director (no edits);

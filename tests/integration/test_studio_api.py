@@ -44,7 +44,7 @@ async def test_page_projects_renders_and_brainstorm() -> None:
     brain = _Brain("- Hook: w3 Claude\n- Logo on w3\nFINAL PROMPT: add captions and a Claude logo")
     async with _client(brain) as client:
         page = await client.get("/app")
-        assert page.status_code == 200 and "ReelForge Studio" in page.text
+        assert page.status_code == 200 and "ClipZ Studio" in page.text
 
         empty = await client.post("/projects", json={"name": "fresh"})
         ready = await client.post(

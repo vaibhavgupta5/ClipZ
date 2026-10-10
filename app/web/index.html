@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ReelForge Studio</title>
+<title>ClipZ Studio</title>
 <style>
 :root {
   --bg: #0d0e12; --panel: #14161c; --panel2: #1a1d25; --line: #262a35; --text: #e6e6e6;
@@ -106,10 +106,10 @@ pre.summary { white-space: pre-wrap; font: 12px/1.6 var(--mono); background: var
 </head>
 <body>
 <header>
-  <div class="logo">reel<span>forge</span> studio</div>
+  <div class="logo">Clip<span>Z</span> studio</div>
   <div class="who" id="who"></div>
   <div class="spacer"></div>
-  <button id="settingsBtn" title="API key">⚙ Key</button>
+  <button id="settingsBtn" title="Workspace key">⚙ Workspace</button>
 </header>
 <main>
   <aside>
@@ -126,7 +126,7 @@ pre.summary { white-space: pre-wrap; font: 12px/1.6 var(--mono); background: var
   </aside>
 
   <section id="chatwrap">
-    <div id="log"><div class="empty"><h2>Director</h2>Pick a project or upload a video to start.<br>
+    <div id="log"><div class="empty"><h2>ClipZ Director</h2>Pick a project or upload a video to start.<br>
       Brainstorm the edit first, then send the final prompt.</div></div>
     <div class="composer">
       <div class="modes">
@@ -163,11 +163,13 @@ pre.summary { white-space: pre-wrap; font: 12px/1.6 var(--mono); background: var
 </main>
 
 <div class="modal" id="keyModal"><div class="box">
-  <b>API key</b>
-  <p>Your ReelForge key (sent as X-API-Key, kept only in this browser). Any string works on a dev
-    server: it identifies your workspace.</p>
-  <input id="keyInput" placeholder="e.g. my-dev-key" autocomplete="off">
-  <div class="row" style="justify-content:flex-end"><button class="primary" id="keySave">Save</button></div>
+  <b>Workspace key</b>
+  <p>This is not a Gemini or ElevenLabs key. It names your ClipZ workspace: projects created
+    with a key are only visible with the same key. On this dev server, keep the default
+    <code>reelforge-dev-key</code> to see your existing projects, or type any new name to start
+    a fresh workspace. It is stored only in this browser.</p>
+  <input id="keyInput" placeholder="reelforge-dev-key" autocomplete="off">
+  <div class="row" style="justify-content:flex-end"><button class="primary" id="keySave">Continue</button></div>
 </div></div>
 
 <script>
@@ -177,6 +179,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
+const DEFAULT_KEY = "reelforge-dev-key"; // the dev workspace (same as the Postman collection)
 const S = { key: store.get("rf_key", ""), project: null, mode: "brainstorm", busy: false, blobs: {} };
 
 // ---------- API helpers ----------
@@ -483,10 +486,10 @@ async function submit() {
   if (S.mode === "brainstorm") await brainstorm(text); else await edit(text);
 }
 
-function openKey() { $("#keyInput").value = S.key; $("#keyModal").classList.add("on"); $("#keyInput").focus(); }
+function openKey() { $("#keyInput").value = S.key || DEFAULT_KEY; $("#keyModal").classList.add("on"); $("#keyInput").focus(); }
 $("#keySave").onclick = async () => {
   const k = $("#keyInput").value.trim(); if (!k) return;
-  S.key = k; store.set("rf_key", k); $("#keyModal").classList.remove("on"); $("#who").textContent = `key ••${k.slice(-4)}`;
+  S.key = k; store.set("rf_key", k); $("#keyModal").classList.remove("on"); $("#who").textContent = `workspace: ${k}`;
   const projects = await loadProjects().catch((e) => { say("sys", e.message); return []; });
   const last = projects?.find((p) => p.project_id === store.get("rf_last", ""));
   if (last) openProject(last);
@@ -513,7 +516,7 @@ $("#exportBtn").onclick = () => { if (S.project && !S.busy) { setMode("edit"); e
 (async () => {
   setMode("brainstorm");
   if (!S.key) return openKey();
-  $("#who").textContent = `key ••${S.key.slice(-4)}`;
+  $("#who").textContent = `workspace: ${S.key}`;
   const projects = await loadProjects().catch((e) => { say("sys", e.message); return []; });
   const last = projects?.find((p) => p.project_id === store.get("rf_last", ""));
   if (last) openProject(last);
