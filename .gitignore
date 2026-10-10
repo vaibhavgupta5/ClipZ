@@ -6,7 +6,9 @@ __pycache__/
 .env
 .env.*
 !.env.example
-alembic/__pycache__/
+upload/
+work/
+editedVideo/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -18,3 +20,8 @@ fixtures/synth/*.mp4
 fixtures/real/*
 !fixtures/real/.gitkeep
 .DS_Store
+# local asset libraries: media is downloaded by `make assets`; manifests (license records) are tracked
+assets/**
+!assets/
+!assets/*/
+!assets/*/manifest.json

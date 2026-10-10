@@ -63,3 +63,23 @@ def test_redo_refuses_nonlinear_jump() -> None:
         current=1,
     )
     assert log.redo().current == 1
+
+
+def test_undo_follows_parent_after_branch() -> None:
+    from app.timeline.versions import VersionLog
+    from tests.unit.timeline.test_ops import _timeline
+
+    log = VersionLog().append(_timeline()).append(_timeline()).append(_timeline())  # v1<-v2<-v3
+    log = log.undo().append(_timeline())  # v4 branches off v2
+    assert log.current == 4 and log.parent_of(4) == 2
+    assert log.undo().current == 2  # not the abandoned v3
+
+
+def test_redo_follows_newest_branch() -> None:
+    from app.timeline.versions import VersionLog
+    from tests.unit.timeline.test_ops import _timeline
+
+    log = VersionLog().append(_timeline()).append(_timeline()).append(_timeline())  # v1<-v2<-v3
+    log = log.undo().append(_timeline())  # v4 branches off v2
+    back = log.undo()
+    assert back.current == 2 and back.redo().current == 4  # not the abandoned v3

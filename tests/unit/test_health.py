@@ -71,9 +71,9 @@ async def test_readyz_uses_real_checkers_by_default(monkeypatch: pytest.MonkeyPa
     from app.settings import Settings
 
     dead = Settings(
-        DATABASE_URL="postgresql+asyncpg://127.0.0.1:1/none",
+        MONGODB_URL="mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=500",
         REDIS_URL="redis://127.0.0.1:1/0",
-        S3_ENDPOINT="http://127.0.0.1:1",
+        UPLOAD_DIR="/proc/reelforge-not-writable",
     )
     monkeypatch.setattr(health_module, "get_settings", lambda: dead)
     transport = ASGITransport(app=create_app())

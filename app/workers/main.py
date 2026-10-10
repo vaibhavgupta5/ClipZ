@@ -4,8 +4,10 @@ from typing import Any
 
 from arq.connections import RedisSettings
 
+from app.db import ensure_indexes, get_db
 from app.logging_setup import get_logger, setup_logging
 from app.settings import get_settings
+from app.storage import get_storage
 from app.workers.analyze import analyze_asset
 from app.workers.ingest import ingest_asset
 from app.workers.render import render_task
@@ -18,6 +20,8 @@ async def startup(ctx: dict[str, Any]) -> None:
     settings = get_settings()
     setup_logging(settings.LOG_LEVEL)
     ctx["settings"] = settings
+    get_storage(settings).ensure_dirs()
+    await ensure_indexes(get_db(settings))
     log.info("worker startup")
 
 

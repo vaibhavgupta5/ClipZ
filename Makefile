@@ -1,6 +1,6 @@
-.PHONY: dev check worker golden eval-live down logs
+.PHONY: dev check worker golden eval-live assets down logs
 
-dev: ## docker compose up (postgres, redis, minio) + API with reload
+dev: ## docker compose up (mongo, redis) + API with reload
 	docker compose up --build -d
 	docker compose ps
 
@@ -17,7 +17,10 @@ golden: ## render golden tests, compare ffprobe facts + SSIM on sampled frames
 	uv run pytest tests/golden -q
 
 eval-live: ## live-model evals (opt-in, needs provider keys)
-	uv run pytest tests/evals -m integration -q
+	uv run pytest tests/evals -m integration -q -s
+
+assets: ## one-time download of the local music/image/gif/meme libraries (licensed, see ADR-014)
+	uv run python scripts/fetch_assets.py
 
 down:
 	docker compose down

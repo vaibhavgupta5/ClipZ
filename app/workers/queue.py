@@ -15,7 +15,7 @@ async def enqueue_ingest(redis_url: str, payload: dict[str, Any]) -> str:
             raise RuntimeError("arq refused the ingest job")
         return str(job.job_id)
     finally:
-        await pool.close()
+        await pool.aclose()
 
 
 async def enqueue_render(redis_url: str, payload: dict[str, Any]) -> str:
@@ -27,4 +27,4 @@ async def enqueue_render(redis_url: str, payload: dict[str, Any]) -> str:
             raise RuntimeError("arq refused the render job")
         return str(job.job_id)
     finally:
-        await pool.close()
+        await pool.aclose()

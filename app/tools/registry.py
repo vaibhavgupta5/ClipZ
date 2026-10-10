@@ -1,4 +1,4 @@
-"""Tool registry: single definition -> Claude/Gemini schemas + dispatcher."""
+"""Tool registry: single definition -> Gemini function schemas + neutral ToolSpecs."""
 
 import difflib
 
@@ -22,18 +22,6 @@ def get_tool(name: str) -> ToolDef:
         if tool.name == name:
             return tool
     raise ToolNotFound(name)
-
-
-def to_claude_schema() -> dict[str, dict[str, object]]:
-    """Claude tool-use schema per tool."""
-    return {
-        t.name: {
-            "name": t.name,
-            "description": t.description,
-            "input_schema": t.input_model.model_json_schema(),
-        }
-        for t in TOOLS
-    }
 
 
 def to_gemini_schema() -> dict[str, dict[str, object]]:

@@ -29,6 +29,18 @@
 - 9 goldens (SSIM ≥ 0.98); 30 s preview 12.5 s CPU; render worker + API; injection fuzz green.
 - Gate: docs/gates/PHASE-4.md. Gaps: NVENC untested; face reframe = center; animation deferred to styles.
 
-## Phase 5: Agent core + MVP (next)
+## Phase 5: Agent core + MVP (IN PROGRESS — plan docs/plans/PHASE-5.md)
+- Done: T1 reframe field + set_audio_fx op; T2 tool registry (16 tools) + pure executor
+  (`execute(name, args, state)` -> ToolOutcome | ToolFailure with LLM-actionable errors;
+  remove_silence via new `delete_gaps` op that never cuts a word); T3 neutral `ToolCallingLLM`
+  + Claude adapter (claude-opus-5, cached prefix, streamed; ADR-008) + ScriptedToolLLM;
+  T4 Director loop (8-turn cap, per-tool failure cap, ask_user stop, one preview per turn,
+  literal router for undo/redo/export/preview, fenced untrusted project data).
+- Also: caption size/colours + word-highlight rendering (ADR-006); renderer honours
+  audio_fx denoise/loudness (ADR-007, denoise now opt-in).
+- Stubbed: Gemini adapter (needs docs read + key); range preview renders the full timeline;
+  Router has no small-model fallback (literal commands only).
+- Next: T5 chat API + agent_runs migration + DB Workspace; T6 preview/export wiring;
+  T7 30-case eval harness; T8 scripts/demo_mvp.py + gate.
 
 ## Phases 1-10: not started

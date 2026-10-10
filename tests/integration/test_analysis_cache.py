@@ -3,12 +3,11 @@
 import uuid
 
 import pytest
-from sqlalchemy import delete
 
+from app import db as db_ops
 from app.analysis.cache import load_cached, save_bundle
 from app.analysis.models import AnalysisBundle, EnergyCurve
 from app.analysis.models import cache_key as bundle_key
-from app.db import create_engine, session_factory
 from app.models import Project, User
 from app.settings import get_settings
 from app.storage import get_storage
@@ -29,40 +28,19 @@ def _bundle() -> AnalysisBundle:
 
 
 async def test_cache_miss_then_hit() -> None:
-    engine = create_engine(get_settings())
+    db = db_ops.get_db()
     store = get_storage(get_settings())
-    user_id = None
-    try:
-        factory = session_factory(engine)
-        async with factory() as session:
-            user = User(api_key_hash=f"cache-{uuid.uuid4().hex}")
-            session.add(user)
-            await session.flush()
-            user_id = user.id
-            project = Project(user_id=user.id, name="cache")
-            session.add(project)
-            await session.flush()
-            pid = project.id
-            await session.commit()
+    user = await db_ops.insert(db, User(api_key_hash=f"cache-{uuid.uuid4().hex}"))
+    pid = (await db_ops.insert(db, Project(user_id=user.id, name="cache"))).id
 
-        async with factory() as session:
-            assert await load_cached(session, store, pid, "sha123", "full", "1", {}) is None
-            key = await save_bundle(session, store, pid, "sha123", "full", "1", {}, _bundle())
-            assert key == bundle_key("sha123", "full", "1", {})
-            await session.commit()
+    assert await load_cached(db, store, pid, "sha123", "full", "1", {}) is None
+    key = await save_bundle(db, store, pid, "sha123", "full", "1", {}, _bundle())
+    assert key == bundle_key("sha123", "full", "1", {})
+    # saving the same bundle again (another worker) is a no-op, not an error
+    assert await save_bundle(db, store, pid, "sha123", "full", "1", {}, _bundle()) == key
 
-        async with factory() as session:
-            hit = await load_cached(session, store, pid, "sha123", "full", "1", {})
-            assert hit is not None and hit.language == "en"
-            assert hit.analyzer_versions == {"vad": "energy-1"}
-            miss = await load_cached(session, store, pid, "sha123", "full", "2", {})
-            assert miss is None  # version is part of the key
-
-        async with engine.begin() as conn:
-            from app.models import Analysis
-
-            await conn.execute(delete(Analysis).where(Analysis.project_id == pid))
-            await conn.execute(delete(Project).where(Project.id == pid))
-            await conn.execute(delete(User).where(User.id == user_id))
-    finally:
-        await engine.dispose()
+    hit = await load_cached(db, store, pid, "sha123", "full", "1", {})
+    assert hit is not None and hit.language == "en"
+    assert hit.analyzer_versions == {"vad": "energy-1"}
+    miss = await load_cached(db, store, pid, "sha123", "full", "2", {})
+    assert miss is None  # version is part of the key

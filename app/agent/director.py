@@ -36,6 +36,10 @@ EventType = Literal[
     "render_queued",
     "ask",
     "done",
+    "render_progress",
+    "preview_ready",
+    "render_ready",
+    "render_failed",
     "error",
 ]
 
@@ -97,6 +101,7 @@ def _add(a: Usage, b: Usage) -> Usage:
         output_tokens=a.output_tokens + b.output_tokens,
         cache_read_tokens=a.cache_read_tokens + b.cache_read_tokens,
         cache_write_tokens=a.cache_write_tokens + b.cache_write_tokens,
+        thought_tokens=a.thought_tokens + b.thought_tokens,
     )
 
 

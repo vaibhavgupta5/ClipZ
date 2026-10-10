@@ -35,7 +35,7 @@ class ChatReply(BaseModel):
 
 @runtime_checkable
 class LLMProvider(Protocol):
-    """Planning + tool-calling model (Claude, Gemini, others)."""
+    """Text completion model (Gemini; fakes in tests)."""
 
     provider_name: str
 
@@ -51,6 +51,7 @@ class MusicSearchQuery(BaseModel):
     mood: str = Field(description="Free-text mood, e.g. 'upbeat', 'lofi'")
     energy: float = Field(default=0.5, ge=0.0, le=1.0, description="0 calm .. 1 intense")
     bpm: int | None = Field(default=None, description="Target tempo, if known")
+    genre: str | None = Field(default=None, description="Library genre label, e.g. 'lofi'")
     duration_s: int = Field(default=30, ge=1, le=90, description="Needed bed length (<= 90 s cap)")
 
 
@@ -64,6 +65,8 @@ class MusicTrack(BaseModel):
     license: str = Field(description="License identifier, e.g. 'CC-BY-4.0'")
     attribution_required: bool = Field(description="Whether exports must credit the track")
     attribution_text: str = Field(default="", description="Paste-ready credit line")
+    genre: str = Field(default="", description="Library genre label")
+    commercial_use: bool = Field(default=True, description="False = personal use only")
 
 
 @runtime_checkable
@@ -95,6 +98,8 @@ class Candidate(BaseModel):
     license: str = Field(description="License identifier")
     attribution_required: bool = Field(description="Whether exports must credit the asset")
     tags: list[str] = Field(default_factory=list, description="Tone/content tags")
+    attribution_text: str = Field(default="", description="Paste-ready credit line")
+    commercial_use: bool = Field(default=True, description="False = personal use only")
 
 
 class VisualQuery(BaseModel):
@@ -135,6 +140,8 @@ class MemeTemplate(BaseModel):
     url: str = Field(description="Blank template image URL")
     license: str = Field(description="License identifier")
     attribution_required: bool = Field(description="Whether exports must credit the source")
+    commercial_use: bool = Field(default=True, description="False = personal use only")
+    text_boxes: int = Field(default=2, ge=1, description="Caption boxes the template expects")
 
 
 @runtime_checkable

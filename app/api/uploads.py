@@ -1,24 +1,25 @@
-"""Upload flow: presigned PUT -> complete (verify + enqueue ingest) -> SSE progress.
+"""Upload flow: multipart POST -> ./upload/<project>/ -> ingest job -> SSE progress (ADR-010).
 
-The API never proxies video bytes. Staging keys are project-bound so one
-project cannot complete another project's upload.
+The file is streamed to disk in chunks (never held in memory), hashed on the fly,
+and capped at MAX_UPLOAD_MB. Staging paths are project-bound and the filename is
+sanitised, so one project cannot touch another project's upload.
 """
 
 import asyncio
+import hashlib
 import json
 import re
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
-from sqlalchemy import select
+from pymongo.errors import DuplicateKeyError
 from sse_starlette.sse import EventSourceResponse
 
-from app.api.deps import SessionDep, UserDep, owned_project
-from app.media.validate import MAX_UPLOAD_BYTES
+from app import db as db_ops
+from app.api.deps import DbDep, UserDep, owned_project
 from app.models import Job
 from app.settings import get_settings
 from app.storage import get_storage
@@ -26,136 +27,103 @@ from app.storage import get_storage
 router = APIRouter()
 
 _FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-
-
-class UploadRequest(BaseModel):
-    """Ask for a presigned upload URL."""
-
-    filename: str = Field(description="Original filename (sanitized into the key)")
-    content_type: str = Field(description="MIME type, must be video/*")
-    size_bytes: int = Field(gt=0, description="Declared size (cap enforced)")
-
-
-class CompleteRequest(BaseModel):
-    """Confirm a finished client upload and start ingest."""
-
-    key: str = Field(description="Staging key issued by POST .../uploads")
-    sha256: str = Field(pattern=r"^[0-9a-f]{64}$", description="Client-computed sha256")
+CHUNK = 1024 * 1024
 
 
 def _safe_filename(filename: str) -> str:
     if not _FILENAME_RE.match(filename) or ".." in filename:
-        raise ValueError(f"unsafe filename: {filename!r}")
+        raise ValueError(f"unsafe filename: {filename!r} (use letters, digits, . _ -)")
     return filename
 
 
-@router.post("/projects/{project_id}/uploads")
-async def request_upload(
-    project_id: uuid.UUID, body: UploadRequest, session: SessionDep, user_id: UserDep
-) -> dict[str, object]:
-    """Issue a presigned PUT URL for a project-bound staging key."""
-    await owned_project(session, user_id, project_id)
-    try:
-        safe = _safe_filename(body.filename)
-    except ValueError as exc:
-        return JSONResponse(status_code=422, content={"errors": [{"message": str(exc)}]})  # type: ignore[return-value]
-    if not body.content_type.startswith("video/"):
-        return JSONResponse(
-            status_code=422, content={"errors": [{"message": "content_type must be video/*"}]}
-        )  # type: ignore[return-value]
-    if body.size_bytes > MAX_UPLOAD_BYTES:
-        return JSONResponse(
-            status_code=422, content={"errors": [{"message": "size over the 1 GB cap"}]}
-        )  # type: ignore[return-value]
-    key = f"uploads/{project_id}/{uuid.uuid4().hex}/{safe}"
-    url = get_storage(get_settings()).presigned_upload_url(key, body.content_type)
-    return {"key": key, "upload_url": url}
+def _error(message: str, status: int = 422) -> JSONResponse:
+    return JSONResponse(status_code=status, content={"errors": [{"message": message}]})
 
 
-@router.post("/projects/{project_id}/uploads/complete")
-async def complete_upload(
-    project_id: uuid.UUID,
-    body: CompleteRequest,
-    session: SessionDep,
-    user_id: UserDep,
-) -> dict[str, object]:
-    """Verify the staged object, create the ingest job (idempotent), enqueue it."""
+@router.post("/projects/{project_id}/uploads", response_model=None)
+async def upload_video(
+    project_id: uuid.UUID, file: UploadFile, db: DbDep, user_id: UserDep
+) -> dict[str, object] | JSONResponse:
+    """Save the upload to ./upload/<project>/, create the ingest job (idempotent), enqueue it."""
     from app.workers.queue import enqueue_ingest
 
-    await owned_project(session, user_id, project_id)
-    prefix = f"uploads/{project_id}/"
-    if not body.key.startswith(prefix):
-        return JSONResponse(
-            status_code=422,
-            content={"errors": [{"message": "key was not issued for this project"}]},
-        )  # type: ignore[return-value]
-    store = get_storage(get_settings())
+    await owned_project(db, user_id, project_id)
     try:
-        store.stat(body.key)
-    except KeyError:
-        return JSONResponse(
-            status_code=422, content={"errors": [{"message": "upload not found at key"}]}
-        )  # type: ignore[return-value]
-    idem = f"ingest:{project_id}:{body.sha256}"
-    existing = await session.scalar(select(Job).where(Job.idempotency_key == idem))
+        safe = _safe_filename(file.filename or "")
+    except ValueError as exc:
+        return _error(str(exc))
+    if not (file.content_type or "").startswith("video/"):
+        return _error("content type must be video/*")
+
+    settings = get_settings()
+    cap = settings.MAX_UPLOAD_MB * 1024 * 1024
+    store = get_storage(settings)
+    key = f"uploads/{project_id}/{uuid.uuid4().hex}/{safe}"
+    path = store.path_for(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    digest, size = hashlib.sha256(), 0
+    try:
+        with path.open("wb") as out:
+            while chunk := await file.read(CHUNK):
+                size += len(chunk)
+                if size > cap:
+                    raise ValueError(f"upload over the {settings.MAX_UPLOAD_MB} MB cap")
+                digest.update(chunk)
+                out.write(chunk)
+    except ValueError as exc:
+        path.unlink(missing_ok=True)
+        return _error(str(exc), status=413)
+    if size == 0:
+        path.unlink(missing_ok=True)
+        return _error("empty upload")
+
+    sha = digest.hexdigest()
+    idem = f"ingest:{project_id}:{sha}"
+    existing = await db_ops.find_one(db, Job, {"idempotency_key": idem})
     if existing is not None:
-        return {"job_id": str(existing.id), "reused": True}
-    job = Job(
-        project_id=project_id, type="ingest", status="queued", idempotency_key=idem, payload={}
-    )
-    session.add(job)
-    await session.flush()
+        path.unlink(missing_ok=True)  # same bytes already ingested/ingesting
+        return {"job_id": str(existing.id), "reused": True, "sha256": sha}
+    try:
+        job = await db_ops.insert(
+            db, Job(project_id=project_id, type="ingest", idempotency_key=idem)
+        )
+    except DuplicateKeyError:
+        path.unlink(missing_ok=True)
+        raced = await db_ops.find_one(db, Job, {"idempotency_key": idem})
+        assert raced is not None
+        return {"job_id": str(raced.id), "reused": True, "sha256": sha}
     await enqueue_ingest(
-        get_settings().REDIS_URL,
-        {
-            "job_id": str(job.id),
-            "project_id": str(project_id),
-            "storage_key": body.key,
-            "sha256": body.sha256,
-        },
+        settings.REDIS_URL,
+        {"job_id": str(job.id), "project_id": str(project_id), "storage_key": key, "sha256": sha},
     )
-    await session.commit()
-    return {"job_id": str(job.id), "reused": False}
+    return {"job_id": str(job.id), "reused": False, "sha256": sha}
 
 
 @router.get("/projects/{project_id}/jobs/{job_id}/events")
 async def job_events(
-    project_id: uuid.UUID, job_id: uuid.UUID, session: SessionDep, user_id: UserDep
+    project_id: uuid.UUID, job_id: uuid.UUID, db: DbDep, user_id: UserDep
 ) -> EventSourceResponse:
-    """SSE progress stream for one job (polls the jobs row until terminal)."""
-    await owned_project(session, user_id, project_id)
-    job = await session.get(Job, job_id)
+    """SSE progress stream for one job (polls the job document until terminal)."""
+    await owned_project(db, user_id, project_id)
+    job = await db_ops.get(db, Job, job_id)
     if job is None or job.project_id != project_id:
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=404, detail="job not found")
 
     async def stream() -> AsyncIterator[dict[str, Any]]:
-        from app import db as db_module
-
-        engine = db_module.create_engine(get_settings())
-        try:
-            factory = db_module.session_factory(engine)
-            for _ in range(1200):  # 10 minutes at 0.5 s
-                async with factory() as poll:
-                    row = await poll.get(Job, job_id)
-                    if row is None:
-                        yield {"event": "failed", "data": '{"status": "failed"}'}
-                        return
-                    yield {
-                        "event": "status",
-                        "data": json.dumps(
-                            {
-                                "status": row.status,
-                                "progress": row.progress,
-                                "error": row.error,
-                            }
-                        ),
-                    }
-                    if row.status in ("done", "failed"):
-                        return
-                await asyncio.sleep(0.5)
-        finally:
-            await engine.dispose()
+        poll_db = db_ops.get_db()
+        for _ in range(1200):  # 10 minutes at 0.5 s
+            row = await db_ops.get(poll_db, Job, job_id)
+            if row is None:
+                yield {"event": "failed", "data": '{"status": "failed"}'}
+                return
+            yield {
+                "event": "status",
+                "data": json.dumps(
+                    {"status": row.status, "progress": row.progress, "error": row.error}
+                ),
+            }
+            if row.status in ("done", "failed"):
+                return
+            await asyncio.sleep(0.5)
 
     return EventSourceResponse(stream())

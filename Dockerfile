@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # ffmpeg/ffprobe for media work + curl for healthchecks
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg curl \
+    ffmpeg curl fonts-liberation fonts-noto-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -17,8 +17,6 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY app ./app
-COPY alembic ./alembic
-COPY alembic.ini ./
 RUN uv sync --frozen --no-dev
 
 # Non-root runtime

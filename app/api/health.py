@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 async def check_db() -> str:
-    """SELECT 1 against Postgres; raises on failure."""
+    """Ping MongoDB; raises on failure."""
     return await db_module.check_connectivity(get_settings())
 
 
@@ -31,10 +31,9 @@ async def check_redis() -> str:
 
 
 async def check_storage() -> str:
-    """HEAD the bucket; raises on failure."""
-    store = get_storage(get_settings())
-    if not store.bucket_exists():
-        raise ConnectionError("storage bucket unreachable")
+    """upload/, work/, editedVideo/ exist and are writable; raises on failure."""
+    if not get_storage(get_settings()).writable():
+        raise ConnectionError("storage dirs not writable")
     return "ok"
 
 

@@ -1,19 +1,15 @@
 services:
-  db:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_USER: reelforge
-      POSTGRES_PASSWORD: reelforge
-      POSTGRES_DB: reelforge
+  mongo:
+    image: mongo:8.0
     ports:
-      - "5432:5432"
+      - "27018:27017"  # host 27017 is often taken by another local mongo
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mongodata:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U reelforge -d reelforge"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 20
 
   redis:
     image: redis:7-alpine
@@ -25,86 +21,61 @@ services:
       timeout: 3s
       retries: 10
 
-  garage:
-    image: dxflrs/garage:v2.4.1
-    command: ["/garage", "server"]
-    ports:
-      - "9000:3900"
-    volumes:
-      - ./docker/garage.toml:/etc/garage.toml:ro
-      - garagemeta:/var/lib/garage/meta
-      - garagedata:/var/lib/garage/data
-    healthcheck:
-      # garage CLI reads rpc_secret from /etc/garage.toml; `status` is 0 when the server answers RPC.
-      test: ["CMD", "/garage", "status"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  garage-init:
-    build:
-      context: .
-      dockerfile: Dockerfile.garage-init
-    network_mode: service:garage
-    volumes:
-      - ./docker/garage.toml:/etc/garage.toml:ro
-      - garagemeta:/var/lib/garage/meta:ro
-    environment:
-      GARAGE_RPC_SECRET: 7b086825f21e47b2f9922726ddc46b994372999a70c8953d6a1ed0c449e46261
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: reelforge-dev-secret-key
-      S3_BUCKET: reelforge
-    depends_on:
-      garage:
-        condition: service_healthy
-    restart: "no"
-
   api:
     build: .
+    user: "${UID:-1000}:${GID:-1000}"  # bind-mounted data dirs stay owned by you
     depends_on:
-      db:
+      mongo:
         condition: service_healthy
       redis:
         condition: service_healthy
-      garage-init:
-        condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql+asyncpg://reelforge:reelforge@db:5432/reelforge
+      MONGODB_URL: mongodb://mongo:27017
+      MONGODB_DB: reelforge
       REDIS_URL: redis://redis:6379/0
-      S3_ENDPOINT: http://garage:3900
-      S3_PUBLIC_ENDPOINT: http://localhost:9000
-      S3_BUCKET: reelforge
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: reelforge-dev-secret-key
-      S3_REGION: us-east-1
+      UPLOAD_DIR: /srv/data/upload
+      WORK_DIR: /srv/data/work
+      EDITED_DIR: /srv/data/editedVideo
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ASSETS_DIR: /srv/assets
+      UV_CACHE_DIR: /tmp/uv
     ports:
       - "8000:8000"
     volumes:
       - ./app:/srv/app:ro
-    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      - ./assets:/srv/assets:ro
+      - ./upload:/srv/data/upload
+      - ./work:/srv/data/work
+      - ./editedVideo:/srv/data/editedVideo
+    command: uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   worker-cpu:
     build: .
+    user: "${UID:-1000}:${GID:-1000}"  # bind-mounted data dirs stay owned by you
     depends_on:
-      db:
+      mongo:
         condition: service_healthy
       redis:
         condition: service_healthy
-      garage-init:
-        condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql+asyncpg://reelforge:reelforge@db:5432/reelforge
+      MONGODB_URL: mongodb://mongo:27017
+      MONGODB_DB: reelforge
       REDIS_URL: redis://redis:6379/0
-      S3_ENDPOINT: http://garage:3900
-      S3_BUCKET: reelforge
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: reelforge-dev-secret-key
-      S3_REGION: us-east-1
+      UPLOAD_DIR: /srv/data/upload
+      WORK_DIR: /srv/data/work
+      EDITED_DIR: /srv/data/editedVideo
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ASSETS_DIR: /srv/assets
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      HF_HOME: /srv/data/work/.hf  # faster-whisper model, downloaded once
+      UV_CACHE_DIR: /tmp/uv
     volumes:
       - ./app:/srv/app:ro
-    command: uv run arq app.workers.main.WorkerSettings
+      - ./assets:/srv/assets:ro
+      - ./upload:/srv/data/upload
+      - ./work:/srv/data/work
+      - ./editedVideo:/srv/data/editedVideo
+    command: uv run --no-sync arq app.workers.main.WorkerSettings
 
 volumes:
-  pgdata:
-  garagemeta:
-  garagedata:
+  mongodata:

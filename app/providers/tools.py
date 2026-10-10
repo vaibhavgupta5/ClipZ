@@ -66,6 +66,7 @@ class Usage(BaseModel):
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
+    thought_tokens: int = 0
 
 
 StopReason = Literal["end_turn", "tool_use", "max_tokens", "refusal", "other"]

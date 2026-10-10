@@ -64,9 +64,20 @@ def _cut_clips_at(clips: list[VideoClip], points: list[float]) -> list[VideoClip
     return out
 
 
+def _unique_id(base: str, taken: set[str]) -> str:
+    """``base`` if free, else base~, base~2, base~3, ... (first free)."""
+    cid, n = base, 1
+    while cid in taken:
+        cid = f"{base}~" if n == 1 else f"{base}~{n}"
+        n += 1
+    taken.add(cid)
+    return cid
+
+
 def _remove_source_range(clips: list[VideoClip], lo: float, hi: float) -> list[VideoClip]:
-    """Subtract [lo, hi] from every clip; drop empties."""
+    """Subtract [lo, hi] from every clip; drop empties. Split pieces get unique IDs."""
     out: list[VideoClip] = []
+    taken = {c.id for c in clips}
     for clip in clips:
         if hi <= clip.src_in + EPS or lo >= clip.src_out - EPS:
             out.append(clip)
@@ -78,9 +89,10 @@ def _remove_source_range(clips: list[VideoClip], lo: float, hi: float) -> list[V
                 )
             )
         if hi < clip.src_out - EPS:
+            tail_id = clip.id if lo <= clip.src_in + EPS else _unique_id(f"{clip.id}~", taken)
             out.append(
                 VideoClip(
-                    id=f"{clip.id}~",
+                    id=tail_id,
                     asset=clip.asset,
                     src_in=hi,
                     src_out=clip.src_out,
@@ -97,7 +109,8 @@ def _replace_clips(tl: Timeline, clips: list[VideoClip]) -> Timeline:
             "this op would remove every clip",
             "keep at least one word: narrow the word range",
         )
-    return tl.model_copy(update={"video_clips": clips}, deep=True)
+    # model_validate (not model_copy) so an invalid clip list can never be persisted
+    return Timeline.model_validate({**tl.model_dump(), "video_clips": clips})
 
 
 def _contiguous_runs(tl: Timeline, word_ids: list[str]) -> list[tuple[Word, Word]]:

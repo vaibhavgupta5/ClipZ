@@ -5,64 +5,38 @@ import uuid
 from pathlib import Path
 
 import pytest
-from sqlalchemy import delete, select
 
-from app.db import create_engine, session_factory
+from app import db as db_ops
 from app.models import Asset, Job, Project, User
-from app.models import Timeline as TimelineRow
 from app.settings import get_settings
 from app.workers.ingest import ingest_asset
 
 pytestmark = pytest.mark.integration
 
-CTX = {"settings": get_settings()}
+
+def _ctx() -> dict[str, object]:
+    return {"settings": get_settings()}
 
 
 async def _seed(kind_suffix: str = "") -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
-    engine = create_engine(get_settings())
-    try:
-        factory = session_factory(engine)
-        async with factory() as session:
-            user = User(api_key_hash=f"ingest-{kind_suffix}-{uuid.uuid4().hex}")
-            session.add(user)
-            await session.flush()
-            project = Project(user_id=user.id, name="ingest-itest")
-            session.add(project)
-            await session.flush()
-            job = Job(
-                project_id=project.id,
-                type="ingest",
-                status="queued",
-                idempotency_key=f"ingest:itest-{uuid.uuid4().hex}",
-                payload={},
-            )
-            session.add(job)
-            await session.flush()
-            ids = (user.id, project.id, job.id)
-            await session.commit()
-            return ids
-    finally:
-        await engine.dispose()
+    db = db_ops.get_db()
+    user = await db_ops.insert(db, User(api_key_hash=f"ingest-{kind_suffix}-{uuid.uuid4().hex}"))
+    project = await db_ops.insert(db, Project(user_id=user.id, name="ingest-itest"))
+    job = await db_ops.insert(
+        db,
+        Job(
+            project_id=project.id, type="ingest", idempotency_key=f"ingest:itest-{uuid.uuid4().hex}"
+        ),
+    )
+    return (user.id, project.id, job.id)
 
 
-async def _cleanup(user_id: uuid.UUID) -> None:
-    engine = create_engine(get_settings())
-    try:
-        async with engine.begin() as conn:
-            pids = select(Project.id).where(Project.user_id == user_id)
-            tids = select(TimelineRow.id).where(TimelineRow.project_id.in_(pids))
-            from app.models import Message, Render, TimelineVersion
+async def _cleanup(user_id: object) -> None:
+    """No-op: the integration fixture drops the whole database."""
 
-            await conn.execute(delete(Render).where(Render.project_id.in_(pids)))
-            await conn.execute(delete(Message).where(Message.project_id.in_(pids)))
-            await conn.execute(delete(TimelineVersion).where(TimelineVersion.timeline_id.in_(tids)))
-            await conn.execute(delete(TimelineRow).where(TimelineRow.id.in_(tids)))
-            await conn.execute(delete(Job).where(Job.project_id.in_(pids)))
-            await conn.execute(delete(Asset).where(Asset.project_id.in_(pids)))
-            await conn.execute(delete(Project).where(Project.id.in_(pids)))
-            await conn.execute(delete(User).where(User.id == user_id))
-    finally:
-        await engine.dispose()
+
+async def _asset_count(project_id: object) -> int:
+    return len(await db_ops.find(db_ops.get_db(), Asset, {"project_id": project_id}))
 
 
 async def _run_fixture(name: str, data: bytes | None = None) -> dict[str, object]:
@@ -75,11 +49,11 @@ async def _run_fixture(name: str, data: bytes | None = None) -> dict[str, object
     raw = data
     sha = hashlib.sha256(raw).hexdigest()
     user_id, project_id, job_id = await _seed(name)
-    key = f"itest/{uuid.uuid4().hex}/{name}.mp4"
+    key = f"uploads/{project_id}/{uuid.uuid4().hex}/{name}.mp4"
     get_storage(get_settings()).put_bytes(key, raw, "video/mp4")
     try:
         result = await ingest_asset(
-            CTX, job_id=str(job_id), project_id=str(project_id), storage_key=key, sha256=sha
+            _ctx(), job_id=str(job_id), project_id=str(project_id), storage_key=key, sha256=sha
         )
         return {"result": result, "user_id": user_id, "project_id": project_id, "job_id": job_id}
     except Exception:
@@ -100,6 +74,12 @@ async def test_full_pipeline_bars_5s() -> None:
         assert len(master) > 100_000
         wf = json.loads(store.get_bytes(f"projects/{out['project_id']}/waveform.json"))
         assert len(wf["peaks"]) == 50  # 5 s x 10 buckets
+        upload_dir = Path(get_settings().UPLOAD_DIR) / str(out["project_id"])
+        assert not upload_dir.exists()  # raw upload removed once ingest succeeded
+        analysis = await db_ops.find_one(
+            db_ops.get_db(), Job, {"project_id": out["project_id"], "type": "analyze"}
+        )
+        assert analysis is not None and out["result"]["analysis_job_id"] == str(analysis.id)
 
         import os
         import tempfile
@@ -237,11 +217,11 @@ async def test_corrupt_file_rejected() -> None:
     data = b"this is not a video file" * 100
     sha = hashlib.sha256(data).hexdigest()
     user_id, project_id, job_id = await _seed("corrupt")
-    key = f"itest/{uuid.uuid4().hex}/corrupt.mp4"
+    key = f"uploads/{project_id}/{uuid.uuid4().hex}/corrupt.mp4"
     get_storage(get_settings()).put_bytes(key, data, "video/mp4")
     try:
         result = await ingest_asset(
-            CTX, job_id=str(job_id), project_id=str(project_id), storage_key=key, sha256=sha
+            _ctx(), job_id=str(job_id), project_id=str(project_id), storage_key=key, sha256=sha
         )
         assert result["status"] == "failed"
     finally:
@@ -252,19 +232,7 @@ async def test_ingest_is_idempotent() -> None:
     first = await _run_fixture("bars_30s")
     try:
         assert first["result"]["status"] == "done"
-        engine = create_engine(get_settings())
-        try:
-            factory = session_factory(engine)
-            async with factory() as session:
-                n1 = len(
-                    (
-                        await session.scalars(
-                            select(Asset).where(Asset.project_id == first["project_id"])
-                        )
-                    ).all()
-                )
-        finally:
-            await engine.dispose()
+        n1 = await _asset_count(first["project_id"])
         # second run with same bytes, new job, same project
         import asyncio as _asyncio
 
@@ -272,27 +240,19 @@ async def test_ingest_is_idempotent() -> None:
 
         data = await _asyncio.to_thread(Path("fixtures/synth/bars_30s.mp4").read_bytes)
         sha = hashlib.sha256(data).hexdigest()
-        key2 = f"itest/{uuid.uuid4().hex}/bars_30s.mp4"
+        key2 = f"uploads/{first['project_id']}/{uuid.uuid4().hex}/bars_30s.mp4"
         _store(get_settings()).put_bytes(key2, data, "video/mp4")
-        engine = create_engine(get_settings())
-        try:
-            factory = session_factory(engine)
-            async with factory() as session:
-                job = Job(
-                    project_id=first["project_id"],
-                    type="ingest",
-                    status="queued",
-                    idempotency_key=f"ingest:itest-{uuid.uuid4().hex}",
-                    payload={},
-                )
-                session.add(job)
-                await session.flush()
-                job_id2 = job.id
-                await session.commit()
-        finally:
-            await engine.dispose()
+        job2 = await db_ops.insert(
+            db_ops.get_db(),
+            Job(
+                project_id=first["project_id"],
+                type="ingest",
+                idempotency_key=f"ingest:itest-{uuid.uuid4().hex}",
+            ),
+        )
+        job_id2 = job2.id
         result2 = await ingest_asset(
-            CTX,
+            _ctx(),
             job_id=str(job_id2),
             project_id=str(first["project_id"]),
             storage_key=key2,
@@ -300,19 +260,7 @@ async def test_ingest_is_idempotent() -> None:
         )
         assert result2["status"] == "done"
         assert result2["reused"] is True
-        engine = create_engine(get_settings())
-        try:
-            factory = session_factory(engine)
-            async with factory() as session:
-                n2 = len(
-                    (
-                        await session.scalars(
-                            select(Asset).where(Asset.project_id == first["project_id"])
-                        )
-                    ).all()
-                )
-        finally:
-            await engine.dispose()
+        n2 = await _asset_count(first["project_id"])
         assert n1 == n2
     finally:
         await _cleanup(first["user_id"])  # type: ignore[arg-type]

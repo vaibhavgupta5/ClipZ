@@ -77,3 +77,21 @@ for spec in "red:card_red" "blue:card_blue" "green:card_green"; do
     -frames:v 1 "$OUT/$name.png"
 done
 echo "[fixtures] overlay cards: $(ls "$OUT"/*.png | wc -l) files"
+
+# Real speech (network, optional: SPEECH=1). CC0 recordings from Freesound via Openverse:
+#   speech_en: "Narration Request"            https://freesound.org/s/381993/ (CC0)
+#   speech_pt: "audio of a man philosophizing" https://freesound.org/s/578923/ (CC0, Portuguese:
+#              exercises the en/hi language restriction)
+if [ "${SPEECH:-0}" = "1" ]; then
+  for spec in "en:https://cdn.freesound.org/previews/381/381993_2276808-hq.mp3" \
+              "pt:https://cdn.freesound.org/previews/578/578923_12898264-hq.mp3"; do
+    lang="${spec%%:*}"; url="${spec#*:}"
+    curl -sfL -m 60 -o "$OUT/speech_$lang.mp3" "$url"
+    ffmpeg -hide_banner -loglevel error -nostdin -y \
+      -f lavfi -i "color=c=0x223344:s=720x1280:r=30" -i "$OUT/speech_$lang.mp3" \
+      -shortest -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -ar 48000 \
+      "$OUT/speech_$lang.mp4"
+    rm -f "$OUT/speech_$lang.mp3"
+  done
+  echo "[fixtures] speech clips: speech_en.mp4 speech_pt.mp4"
+fi

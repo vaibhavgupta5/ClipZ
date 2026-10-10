@@ -1,14 +1,13 @@
-"""Version persistence integration test against compose Postgres. Opt-in."""
+"""Version persistence integration test against compose MongoDB. Opt-in."""
 
 import uuid
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import create_engine, session_factory
+from app import db as db_ops
+from app.db import Database
 from app.models import Project, User
 from app.models import Timeline as TimelineRow
-from app.settings import get_settings
 from app.timeline.schema import CaptionConfig, OutputSpec, Timeline, VideoClip
 from app.timeline.transcript import Transcript, Word
 from app.timeline.versions import (
@@ -34,53 +33,50 @@ def _tl() -> Timeline:
     )
 
 
-async def _seed(session: AsyncSession) -> uuid.UUID:
-    user = User(api_key_hash="itest-key")
-    session.add(user)
-    await session.flush()
-    project = Project(user_id=user.id, name="itest")
-    session.add(project)
-    await session.flush()
-    row = TimelineRow(project_id=project.id, current_version=0)
-    session.add(row)
-    await session.flush()
+async def _seed(db: Database) -> uuid.UUID:
+    user = await db_ops.insert(db, User(api_key_hash="itest-key"))
+    project = await db_ops.insert(db, Project(user_id=user.id, name="itest"))
+    row = await db_ops.insert(db, TimelineRow(project_id=project.id, current_version=0))
     return row.id
 
 
 async def test_save_load_undo_branch_round_trip() -> None:
-    engine = create_engine(get_settings())
-    try:
-        factory = session_factory(engine)
-        async with factory() as session:
-            tid = await _seed(session)
-            v1, stamped1 = await save_version(session, tid, _tl(), parent=None)
-            v2, stamped2 = await save_version(session, tid, _tl(), parent=v1)
-            assert (v1, v2) == (1, 2)
-            assert (stamped1.version, stamped2.version) == (1, 2)
-            assert await get_current(session, tid) == 2
+    db = db_ops.get_db()
+    tid = await _seed(db)
+    v1, stamped1 = await save_version(db, tid, _tl(), parent=None)
+    v2, stamped2 = await save_version(db, tid, _tl(), parent=v1)
+    assert (v1, v2) == (1, 2)
+    assert (stamped1.version, stamped2.version) == (1, 2)
+    assert await get_current(db, tid) == 2
 
-            await set_current(session, tid, 1)  # undo = pointer move
-            assert await get_current(session, tid) == 1
+    await set_current(db, tid, 1)  # undo = pointer move
+    assert await get_current(db, tid) == 1
 
-            v3, stamped3 = await save_version(session, tid, _tl(), parent=1)  # branch
-            assert v3 == 3
-            assert stamped3.version == 3
-            entries = await list_versions(session, tid)
-            assert [e.version for e in entries] == [1, 2, 3]
-            assert entries[2].parent == 1
+    v3, stamped3 = await save_version(db, tid, _tl(), parent=1)  # branch
+    assert v3 == 3
+    assert stamped3.version == 3
+    entries = await list_versions(db, tid)
+    assert [e.version for e in entries] == [1, 2, 3]
+    assert entries[2].parent == 1
 
-            loaded = await load_version(session, tid, 2)
-            assert loaded.duration_s == _tl().duration_s
+    loaded = await load_version(db, tid, 2)
+    assert loaded.duration_s == _tl().duration_s
 
-            missing = uuid.uuid4()
-            with pytest.raises(ValueError, match="does not exist"):
-                await save_version(session, missing, _tl(), parent=None)
-            with pytest.raises(ValueError, match="has no version"):
-                await load_version(session, tid, 99)
-            with pytest.raises(ValueError, match="does not exist"):
-                await get_current(session, missing)
-            with pytest.raises(ValueError, match="has no version"):
-                await set_current(session, tid, 99)
-            await session.rollback()  # leave no test rows behind
-    finally:
-        await engine.dispose()
+    missing = uuid.uuid4()
+    with pytest.raises(ValueError, match="does not exist"):
+        await save_version(db, missing, _tl(), parent=None)
+    with pytest.raises(ValueError, match="has no version"):
+        await load_version(db, tid, 99)
+    with pytest.raises(ValueError, match="does not exist"):
+        await get_current(db, missing)
+    with pytest.raises(ValueError, match="has no version"):
+        await set_current(db, tid, 99)
+
+
+async def test_concurrent_saves_get_distinct_versions() -> None:
+    import asyncio
+
+    db = db_ops.get_db()
+    tid = await _seed(db)
+    results = await asyncio.gather(*(save_version(db, tid, _tl(), parent=None) for _ in range(5)))
+    assert sorted(v for v, _ in results) == [1, 2, 3, 4, 5]

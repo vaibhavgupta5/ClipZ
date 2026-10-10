@@ -1,8 +1,0 @@
-# Garage admin CLI (copied binary) + bootstrap script on Alpine (garage image has no shell).
-FROM dxflrs/garage:v2.4.1 AS garage
-
-FROM alpine:3.21
-COPY --from=garage /garage /usr/local/bin/garage
-COPY scripts/garage-init.sh /init.sh
-RUN chmod +x /init.sh
-ENTRYPOINT ["/bin/sh", "/init.sh"]

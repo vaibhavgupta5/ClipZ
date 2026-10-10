@@ -67,6 +67,7 @@ def select_video_encoder() -> str:
                     "null",
                     "-",
                 ],
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 check=False,
                 timeout=60,

@@ -6,9 +6,10 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import SessionDep, UserDep, owned_project
+from app import db as db_ops
+from app.api.deps import DbDep, UserDep, owned_project
+from app.db import Database
 from app.models import Project
 from app.models import Timeline as TimelineRow
 from app.timeline import ops as timeline_ops
@@ -31,8 +32,9 @@ from app.timeline.versions import (
     list_versions,
     load_version,
     save_version,
-    set_current,
 )
+from app.timeline.versions import redo as redo_version
+from app.timeline.versions import undo as undo_version
 
 router = APIRouter()
 
@@ -188,17 +190,15 @@ def _timeline_response(tl: Timeline, version: int) -> dict[str, object]:
 @router.post("/projects")
 async def create_project(
     body: CreateProjectRequest,
-    session: SessionDep,
+    db: DbDep,
     user_id: UserDep,
 ) -> dict[str, object]:
     """Create project; timeline v1 now when a transcript is supplied, else on analysis."""
     project = Project(
         name=body.name, user_id=user_id, language=body.language, caption_script=body.caption_script
     )
-    session.add(project)
-    await session.flush()
+    await db_ops.insert(db, project)
     if body.transcript is None:
-        await session.commit()
         return {"project_id": str(project.id), "timeline_id": None, "timeline": None}
     if body.source_asset is None or body.source_duration_s is None:
         raise HTTPException(
@@ -212,11 +212,8 @@ async def create_project(
         ],
     )
     ensure_valid(tl)
-    row = TimelineRow(project_id=project.id, current_version=0)
-    session.add(row)
-    await session.flush()
-    version, stamped = await save_version(session, row.id, tl, parent=None)
-    await session.commit()
+    row = await db_ops.insert(db, TimelineRow(project_id=project.id, current_version=0))
+    version, stamped = await save_version(db, row.id, tl, parent=None)
     return {
         "project_id": str(project.id),
         "timeline_id": str(row.id),
@@ -227,14 +224,14 @@ async def create_project(
 @router.get("/projects/{project_id}/timeline")
 async def get_timeline(
     project_id: uuid.UUID,
-    session: SessionDep,
+    db: DbDep,
     user_id: UserDep,
 ) -> dict[str, object]:
     """Current EDL + summary."""
-    project = await owned_project(session, user_id, project_id)
-    row = await _require_timeline(session, project)
-    version = await get_current(session, row.id)
-    tl = await load_version(session, row.id, version)
+    project = await owned_project(db, user_id, project_id)
+    row = await _require_timeline(db, project)
+    version = await get_current(db, row.id)
+    tl = await load_version(db, row.id, version)
     return {
         "project_id": str(project.id),
         "timeline_id": str(row.id),
@@ -246,21 +243,20 @@ async def get_timeline(
 async def apply_op(
     project_id: uuid.UUID,
     op: OpRequest,
-    session: SessionDep,
+    db: DbDep,
     user_id: UserDep,
 ) -> JSONResponse:
     """Apply one op: validate, persist new version, return EDL + diff."""
-    project = await owned_project(session, user_id, project_id)
-    row = await _require_timeline(session, project)
-    version = await get_current(session, row.id)
-    tl = await load_version(session, row.id, version)
+    project = await owned_project(db, user_id, project_id)
+    row = await _require_timeline(db, project)
+    version = await get_current(db, row.id)
+    tl = await load_version(db, row.id, version)
     try:
         new_tl, diff = _apply(tl, op)
         ensure_valid(new_tl)
     except (OpError, TimelineInvalid) as exc:
         return JSONResponse(status_code=422, content={"errors": _error_list(exc)})
-    new_version, stamped = await save_version(session, row.id, new_tl, parent=version)
-    await session.commit()
+    new_version, stamped = await save_version(db, row.id, new_tl, parent=version)
     return JSONResponse(
         status_code=200,
         content={
@@ -274,67 +270,53 @@ async def apply_op(
 @router.get("/projects/{project_id}/versions")
 async def list_timeline_versions(
     project_id: uuid.UUID,
-    session: SessionDep,
+    db: DbDep,
     user_id: UserDep,
 ) -> dict[str, object]:
     """All versions with parent links."""
-    project = await owned_project(session, user_id, project_id)
-    row = await _require_timeline(session, project)
-    entries = await list_versions(session, row.id)
+    project = await owned_project(db, user_id, project_id)
+    row = await _require_timeline(db, project)
+    entries = await list_versions(db, row.id)
     return {
         "versions": [{"version": e.version, "parent": e.parent} for e in entries],
-        "current": await get_current(session, row.id),
+        "current": await get_current(db, row.id),
     }
 
 
 @router.post("/projects/{project_id}/undo")
 async def undo(
     project_id: uuid.UUID,
-    session: SessionDep,
+    db: DbDep,
     user_id: UserDep,
 ) -> dict[str, object]:
-    """Pointer back one version."""
-    project = await owned_project(session, user_id, project_id)
-    row = await _require_timeline(session, project)
-    version = max(1, await get_current(session, row.id) - 1)
-    await set_current(session, row.id, version)
-    await session.commit()
-    tl = await load_version(session, row.id, version)
+    """Pointer to the current version's parent."""
+    project = await owned_project(db, user_id, project_id)
+    row = await _require_timeline(db, project)
+    version = await undo_version(db, row.id)
+    tl = await load_version(db, row.id, version)
     return {"project_id": str(project.id), **_timeline_response(tl, version)}
 
 
 @router.post("/projects/{project_id}/redo")
 async def redo(
     project_id: uuid.UUID,
-    session: SessionDep,
+    db: DbDep,
     user_id: UserDep,
 ) -> dict[str, object]:
-    """Pointer forward along the linear chain (no-op past a branch)."""
-    project = await owned_project(session, user_id, project_id)
-    row = await _require_timeline(session, project)
-    current = await get_current(session, row.id)
-    entries = await list_versions(session, row.id)
-    nxt = next(
-        (e.version for e in sorted(entries, key=lambda e: e.version) if e.version > current), None
-    )
-    child = next((e for e in entries if e.version == nxt), None) if nxt else None
-    version = child.version if child and child.parent == current else current
-    await set_current(session, row.id, version)
-    await session.commit()
-    tl = await load_version(session, row.id, version)
+    """Pointer to the newest child of the current version (no-op without one)."""
+    project = await owned_project(db, user_id, project_id)
+    row = await _require_timeline(db, project)
+    version = await redo_version(db, row.id)
+    tl = await load_version(db, row.id, version)
     return {"project_id": str(project.id), **_timeline_response(tl, version)}
 
 
-async def _timeline_row(session: AsyncSession, project: Project) -> TimelineRow | None:
-    from sqlalchemy import select
-
-    return await session.scalar(select(TimelineRow).where(TimelineRow.project_id == project.id))
+async def _timeline_row(db: Database, project: Project) -> TimelineRow | None:
+    return await db_ops.find_one(db, TimelineRow, {"project_id": project.id})
 
 
-async def _require_timeline(session: AsyncSession, project: Project) -> TimelineRow:
-    from fastapi import HTTPException
-
-    row = await _timeline_row(session, project)
+async def _require_timeline(db: Database, project: Project) -> TimelineRow:
+    row = await _timeline_row(db, project)
     if row is None:
         raise HTTPException(status_code=404, detail="timeline not ready (analysis pending)")
     return row

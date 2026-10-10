@@ -150,3 +150,13 @@ def test_delete_gaps_removes_silence_between_words() -> None:
 def test_delete_gaps_refuses_to_cut_words() -> None:
     with pytest.raises(OpError, match="cuts_word"):
         ops.delete_gaps(_timeline(), [(0.3, 0.6)])
+
+
+def test_repeated_cuts_in_one_clip_keep_ids_unique() -> None:
+    # fillers then silences then another cut: three holes in the same original clip
+    tl, _ = ops.delete_words(_timeline(), ["w2"])
+    tl, _ = ops.delete_gaps(tl, [(1.42, 1.48)])
+    tl, _ = ops.delete_words(tl, ["w5"])
+    ids = [c.id for c in tl.video_clips]
+    assert len(ids) == len(set(ids)) == 4
+    Timeline.model_validate(tl.model_dump())  # reloads cleanly

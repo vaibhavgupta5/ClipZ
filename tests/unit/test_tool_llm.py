@@ -1,13 +1,20 @@
-"""Tool-calling provider layer: Claude request/response mapping (offline) + scripted fake."""
+"""Tool-calling provider layer: Gemini Interactions mapping (offline) + scripted fake."""
 
-from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from app.providers.claude import ClaudeToolLLM, ProviderUnavailable, build_params, parse_message
+from app.providers.base import ChatMessage, ChatRequest
 from app.providers.fakes import ScriptedToolLLM
+from app.providers.gemini import (
+    GeminiLLM,
+    ProviderFailed,
+    ProviderUnavailable,
+    build_body,
+    parse_interaction,
+    to_steps,
+)
 from app.providers.tools import (
     AgentMessage,
     ToolCall,
@@ -28,119 +35,134 @@ def _request() -> ToolTurnRequest:
             AgentMessage(
                 role="assistant",
                 text="Cutting.",
-                calls=[ToolCall(id="tu_1", name="remove_silence", args={"min_silence_ms": 500})],
+                calls=[ToolCall(id="fc_1", name="remove_silence", args={"min_silence_ms": 500})],
             ),
             AgentMessage(
                 role="user",
-                results=[ToolResult(call_id="tu_1", name="remove_silence", content="{}")],
+                results=[ToolResult(call_id="fc_1", name="remove_silence", content="{}")],
             ),
         ],
     )
 
 
-def test_build_params_caches_prefix_and_maps_history() -> None:
-    params = build_params(_request(), "claude-opus-5", "medium")
-    assert params["system"][0]["cache_control"] == {"type": "ephemeral"}
-    assert "cache_control" in params["tools"][-1]
-    assert all("cache_control" not in t for t in params["tools"][:-1])
-    assert params["thinking"] == {"type": "adaptive"}
-    assert params["output_config"] == {"effort": "medium"}
-    assert params["fallbacks"] == "default"
-    assistant = params["messages"][1]["content"]
-    assert assistant[1] == {
-        "type": "tool_use",
-        "id": "tu_1",
+def test_build_body_is_stateless_and_maps_history() -> None:
+    body = build_body(_request(), "gemini-3.8-flash", "low")
+    assert body["store"] is False and "previous_interaction_id" not in body
+    assert body["system_instruction"] == "You edit reels."
+    assert body["generation_config"] == {"max_output_tokens": 4096, "thinking_level": "low"}
+    assert (
+        body["tools"][0]["type"] == "function"
+        and body["tools"][0]["parameters"]["type"] == "object"
+    )
+    assert [s["type"] for s in body["input"]] == [
+        "user_input",
+        "model_output",
+        "function_call",
+        "function_result",
+    ]
+    assert body["input"][2] == {
+        "type": "function_call",
+        "id": "fc_1",
         "name": "remove_silence",
-        "input": {"min_silence_ms": 500},
+        "arguments": {"min_silence_ms": 500},
     }
-    result = params["messages"][2]["content"][0]
-    assert result["type"] == "tool_result" and result["tool_use_id"] == "tu_1"
+    assert body["input"][3]["call_id"] == "fc_1" and body["input"][3]["is_error"] is False
 
 
-def test_build_params_omits_unsupported_features_for_haiku() -> None:
-    params = build_params(_request(), "claude-haiku-4-5", "medium")
-    assert "thinking" not in params and "fallbacks" not in params and "betas" not in params
+def test_native_steps_are_replayed_verbatim() -> None:
+    native = [
+        {"type": "thought", "signature": "c2ln"},
+        {"type": "function_call", "id": "a", "name": "denoise", "arguments": {}},
+    ]
+    steps = to_steps([AgentMessage(role="assistant", text="ignored", native=native)])
+    assert steps == native
 
 
-def test_native_assistant_content_is_replayed_verbatim() -> None:
-    blob = [{"type": "thinking", "thinking": "", "signature": "s"}]
-    req = ToolTurnRequest(
-        system="s", tools=[], messages=[AgentMessage(role="assistant", native=blob)]
-    )
-    assert build_params(req, "claude-opus-5", "low")["messages"][0]["content"] is blob
-
-
-def _sdk_message(stop: str = "tool_use") -> SimpleNamespace:
+def _interaction(status: str = "requires_action") -> SimpleNamespace:
     return SimpleNamespace(
-        content=[
-            SimpleNamespace(type="thinking", thinking=""),
-            SimpleNamespace(type="text", text="On it."),
-            SimpleNamespace(type="tool_use", id="tu_9", name="denoise", input={"enabled": True}),
+        status=status,
+        model="gemini-3.8-flash",
+        steps=[
+            SimpleNamespace(
+                type="thought", model_dump=lambda **_: {"type": "thought", "signature": "c2ln"}
+            ),
+            {"type": "model_output", "content": [{"type": "text", "text": "On it."}]},
+            {
+                "type": "function_call",
+                "id": "fc_9",
+                "name": "denoise",
+                "arguments": {"enabled": True},
+            },
         ],
-        stop_reason=stop,
-        model="claude-opus-5",
-        usage=SimpleNamespace(
-            input_tokens=10,
-            output_tokens=5,
-            cache_read_input_tokens=900,
-            cache_creation_input_tokens=None,
-        ),
+        usage=SimpleNamespace(total_input_tokens=10, total_output_tokens=5, total_cached_tokens=7),
     )
 
 
-def test_parse_message_extracts_text_calls_usage() -> None:
-    reply = parse_message(_sdk_message())
+def test_parse_interaction_extracts_text_calls_usage_and_native() -> None:
+    reply = parse_interaction(_interaction())
     assert reply.text == "On it." and reply.stop_reason == "tool_use"
-    assert reply.calls == [ToolCall(id="tu_9", name="denoise", args={"enabled": True})]
-    assert reply.usage.cache_read_tokens == 900 and reply.usage.cache_write_tokens == 0
-    assert reply.as_message().native is not None
-    assert parse_message(_sdk_message("pause_turn")).stop_reason == "other"
+    assert reply.calls == [ToolCall(id="fc_9", name="denoise", args={"enabled": True})]
+    assert reply.usage.input_tokens == 10 and reply.usage.cache_read_tokens == 7
+    assert reply.native[0] == {"type": "thought", "signature": "c2ln"}  # type: ignore[index]
+    # completed but with calls still means "run the tools"
+    assert parse_interaction(_interaction("completed")).stop_reason == "tool_use"
+    assert parse_interaction(_interaction("incomplete")).stop_reason == "max_tokens"
+    with pytest.raises(ProviderFailed):
+        parse_interaction(_interaction("failed"))
 
 
-class _FakeStream:
-    """Mimics the SDK's async MessageStream: text_stream deltas then the final message."""
+class _FakeInteractions:
+    def __init__(self, result: Any) -> None:
+        self.result = result
+        self.bodies: list[dict[str, Any]] = []
 
-    def __init__(self, msg: SimpleNamespace, deltas: list[str]) -> None:
-        self.msg = msg
-        self.deltas = deltas
-
-    async def __aenter__(self) -> "_FakeStream":
-        return self
-
-    async def __aexit__(self, *exc: object) -> None:
-        return None
-
-    @property
-    def text_stream(self) -> AsyncIterator[str]:
-        async def gen() -> AsyncIterator[str]:
-            for d in self.deltas:
-                yield d
-
-        return gen()
-
-    async def get_final_message(self) -> SimpleNamespace:
-        return self.msg
+    async def create(self, **body: Any) -> Any:
+        self.bodies.append(body)
+        return self.result
 
 
-async def test_claude_adapter_streams_text_and_returns_reply() -> None:
-    seen: dict[str, Any] = {}
+def _client(result: Any) -> tuple[SimpleNamespace, _FakeInteractions]:
+    fake = _FakeInteractions(result)
+    return SimpleNamespace(aio=SimpleNamespace(interactions=fake)), fake
 
-    def stream(**params: Any) -> _FakeStream:
-        seen.update(params)
-        return _FakeStream(_sdk_message("end_turn"), ["On ", "it."])
 
-    client = SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(stream=stream)))
-    llm = ClaudeToolLLM(api_key="", client=client)
+async def test_gemini_tool_turn_and_text_sink() -> None:
+    client, fake = _client(_interaction("completed"))
+    llm = GeminiLLM(api_key="", client=client)
     assert isinstance(llm, ToolCallingLLM)
     deltas: list[str] = []
     reply = await llm.complete_with_tools(_request(), on_text=deltas.append)
-    assert deltas == ["On ", "it."] and reply.stop_reason == "end_turn"
-    assert seen["model"] == "claude-opus-5"
+    assert deltas == ["On it."] and reply.calls[0].name == "denoise"
+    assert fake.bodies[0]["model"] == "gemini-3.8-flash"
 
 
-async def test_claude_adapter_without_key_is_unavailable() -> None:
-    with pytest.raises(ProviderUnavailable, match="ANTHROPIC_API_KEY"):
-        await ClaudeToolLLM(api_key="").complete_with_tools(_request())
+async def test_gemini_plain_completion_for_analysis() -> None:
+    done = SimpleNamespace(
+        status="completed",
+        model="gemini-3.8-flash",
+        steps=[{"type": "model_output", "content": [{"type": "text", "text": '{"beats": []}'}]}],
+        usage=None,
+    )
+    client, fake = _client(done)
+    reply = await GeminiLLM(api_key="", client=client).complete(
+        ChatRequest(
+            messages=[
+                ChatMessage(role="system", content="Return JSON."),
+                ChatMessage(role="user", content="transcript"),
+            ]
+        )
+    )
+    assert reply.text == '{"beats": []}'
+    body = fake.bodies[0]
+    assert "tools" not in body and body["system_instruction"] == "Return JSON."
+    assert body["input"] == [
+        {"type": "user_input", "content": [{"type": "text", "text": "transcript"}]}
+    ]
+
+
+async def test_gemini_without_key_is_unavailable() -> None:
+    with pytest.raises(ProviderUnavailable, match="GEMINI_API_KEY"):
+        await GeminiLLM(api_key="").complete_with_tools(_request())
 
 
 async def test_scripted_llm_replays_and_records() -> None:

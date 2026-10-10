@@ -170,3 +170,24 @@ def test_every_registered_tool_has_a_handler() -> None:
     for tool in TOOLS:
         result = execute(tool.name, minimal.get(tool.name, {}), ToolState(_timeline()))
         assert isinstance(result, ToolOutcome), (tool.name, result)
+
+
+def test_monetised_export_blocks_personal_use_inserts() -> None:
+    from app.timeline.schema import Overlay
+
+    meme = Overlay(
+        id="ins1",
+        type="meme",
+        asset="memes:imgflip-1",
+        anchor_word="w2",
+        duration_ms=1000,
+        layout="pip_pop",
+        license="unknown",
+        commercial_use=False,
+    )
+    tl = _timeline().model_copy(update={"overlays": [meme]})
+    fail = _fail(execute("export", {}, ToolState(tl)))
+    assert fail.errors[0].code == "personal_use_assets" and "ins1" in fail.message()
+    ok = _ok(execute("export", {"monetized": False}, ToolState(tl)))
+    assert ok.effect == Effect.RENDER
+    assert _ok(execute("export", {}, ToolState(_timeline()))).effect == Effect.RENDER

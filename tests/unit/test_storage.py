@@ -1,8 +1,10 @@
-"""Storage unit tests: MemoryStorage behavior + S3Storage contract (no network)."""
+"""Storage unit tests: MemoryStorage + LocalStorage routing, traversal and lifecycle."""
+
+from pathlib import Path
 
 import pytest
 
-from app.storage import MemoryStorage, S3Storage, Storage, validate_key
+from app.storage import LocalStorage, MemoryStorage, Storage, validate_key
 
 
 def test_memory_storage_round_trip() -> None:
@@ -15,68 +17,46 @@ def test_memory_storage_round_trip() -> None:
 
 
 def test_validate_key_rejects_traversal() -> None:
-    for bad in ["", "../etc/passwd", "a/../../b", "/absolute", "x" * 1025]:
+    for bad in ["", "../etc/passwd", "a/../../b", "/absolute", "x" * 1025, "a\\b", "a\x00b"]:
         with pytest.raises(ValueError):
             validate_key(bad)
-    validate_key("proj-1/normalized/master.mp4")  # must not raise
+    validate_key("projects/p1/master.mp4")  # must not raise
 
 
-def test_s3_presigned_url_uses_public_endpoint() -> None:
-    store = S3Storage(
-        endpoint="http://internal:3900",
-        bucket="reelforge",
-        access_key="a",
-        secret_key="b",
-        public_endpoint="http://public:9000",
-    )
-    url = store.presigned_upload_url("proj/x.mp4", "video/mp4", expires_s=60)
-    assert url.startswith("http://public:9000/reelforge/proj/x.mp4")
+def _store(tmp_path: Path) -> LocalStorage:
+    s = LocalStorage(str(tmp_path / "upload"), str(tmp_path / "work"), str(tmp_path / "edited"))
+    s.ensure_dirs()
+    return s
 
 
-def test_s3_presigned_url_shape_without_network() -> None:
-    store = S3Storage(
-        endpoint="http://localhost:9000", bucket="reelforge", access_key="a", secret_key="b"
-    )
-    url = store.presigned_upload_url("proj/x.mp4", "video/mp4", expires_s=60)
-    assert url.startswith("http://localhost:9000/reelforge/proj/x.mp4")
-    assert "X-Amz-Expires=60" in url
+def test_keys_route_to_the_three_roots(tmp_path: Path) -> None:
+    s = _store(tmp_path)
+    assert s.path_for("uploads/p1/x/raw.mp4") == tmp_path / "upload/p1/x/raw.mp4"
+    assert s.path_for("renders/p1/final-ab.mp4") == tmp_path / "edited/p1/final-ab.mp4"
+    assert s.path_for("projects/p1/master.mp4") == tmp_path / "work/p1/master.mp4"
+    assert s.path_for("segments/abc.mp4") == tmp_path / "work/cache/segments/abc.mp4"
+    with pytest.raises(ValueError):
+        s.path_for("uploads")  # no object name
 
 
-def test_s3_storage_put_get_with_stubber() -> None:
-    import io
+def test_local_round_trip_stat_delete(tmp_path: Path) -> None:
+    s = _store(tmp_path)
+    s.put_bytes("projects/p1/a.bin", b"abc", "application/octet-stream")
+    assert s.get_bytes("projects/p1/a.bin") == b"abc" and s.stat("projects/p1/a.bin") == 3
+    assert s.public_url("renders/p1/x.mp4") == "/media/renders/p1/x.mp4"
+    s.delete("projects/p1/a.bin")
+    with pytest.raises(KeyError):
+        s.stat("projects/p1/a.bin")
+    assert s.writable()
 
-    import boto3
-    from botocore.response import StreamingBody
-    from botocore.stub import Stubber
 
-    store = S3Storage(
-        endpoint="http://localhost:9000", bucket="reelforge", access_key="a", secret_key="b"
-    )
-    client = boto3.client(
-        "s3",
-        endpoint_url="http://localhost:9000",
-        aws_access_key_id="a",
-        aws_secret_access_key="b",
-        region_name="us-east-1",
-    )
-    stubber = Stubber(client)
-    stubber.add_response(
-        "put_object",
-        {},
-        {
-            "Bucket": "reelforge",
-            "Key": "k",
-            "Body": b"data",
-            "ContentType": "application/octet-stream",
-        },
-    )
-    stubber.add_response(
-        "get_object",
-        {"Body": StreamingBody(io.BytesIO(b"data"), 4)},
-        {"Bucket": "reelforge", "Key": "k"},
-    )
-    stubber.activate()
-    store._client = client  # noqa: SLF001 - test seam
-    store.put_bytes("k", b"data", "application/octet-stream")
-    assert store.get_bytes("k") == b"data"
-    stubber.deactivate()
+def test_delete_tree_is_scoped(tmp_path: Path) -> None:
+    s = _store(tmp_path)
+    s.put_bytes("projects/p1/master.mp4", b"m", "video/mp4")
+    s.put_bytes("renders/p1/final.mp4", b"f", "video/mp4")
+    s.delete_tree("projects/p1")
+    assert not (tmp_path / "work/p1").exists()
+    assert (tmp_path / "edited/p1/final.mp4").exists()  # exports are kept
+    for bad in ("renders/p1", "projects", "projects/p1/sub", "segments/x"):
+        with pytest.raises(ValueError):
+            s.delete_tree(bad)

@@ -1,179 +1,154 @@
-"""Core data model: users, projects, assets, timelines, versions, messages, jobs, renders."""
+"""Core data model as MongoDB documents (ADR-011).
+
+One pydantic model per collection; ``id`` is stored as ``_id`` (UUID, standard
+representation). Helpers in app/db.py do the (de)serialisation.
+"""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import Any, ClassVar
 
-from pgvector.sqlalchemy import Vector
-from sqlalchemy import (
-    BigInteger,
-    Boolean,
-    DateTime,
-    Float,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    UniqueConstraint,
-    func,
-)
-from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class Base(DeclarativeBase):
-    """Declarative base for all ReelForge tables."""
+def _now() -> datetime:
+    return datetime.now(UTC)
 
 
-def _uuid_pk() -> Mapped[uuid.UUID]:
-    return mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+class Doc(BaseModel):
+    """Base document: UUID ``_id`` + created_at."""
+
+    model_config = ConfigDict(populate_by_name=True, validate_assignment=True)
+    collection: ClassVar[str] = ""
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, alias="_id")
+    created_at: datetime = Field(default_factory=_now)
+
+    def to_mongo(self) -> dict[str, Any]:
+        """Dict for insert/replace (``_id`` key, native UUID/datetime)."""
+        return self.model_dump(by_alias=True)
 
 
-def _created_at() -> Mapped[datetime]:
-    return mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-
-class User(Base):
+class User(Doc):
     """API consumer (stub auth: API key header until Phase 10 JWT)."""
 
-    __tablename__ = "users"
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    api_key_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
-    created_at: Mapped[datetime] = _created_at()
+    collection: ClassVar[str] = "users"
+    api_key_hash: str
 
 
-class Project(Base):
+class Project(Doc):
     """One reel-editing project owned by a user."""
 
-    __tablename__ = "projects"
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    name: Mapped[str] = mapped_column(String(200), nullable=False, default="Untitled reel")
-    language: Mapped[str] = mapped_column(String(8), nullable=False, default="auto")
-    caption_script: Mapped[str] = mapped_column(String(16), nullable=False, default="devanagari")
-    created_at: Mapped[datetime] = _created_at()
+    collection: ClassVar[str] = "projects"
+    user_id: uuid.UUID
+    name: str = "Untitled reel"
+    language: str = "auto"
+    caption_script: str = "devanagari"
 
 
-class Asset(Base):
+class Asset(Doc):
     """Any media file: raw upload, normalized master, proxy, music, insert, sfx."""
 
-    __tablename__ = "assets"
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
-    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_sha: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, comment="Source bytes hash for derived assets"
-    )
-    source: Mapped[str] = mapped_column(String(64), nullable=False)
-    license: Mapped[str] = mapped_column(String(64), nullable=False)
-    attribution_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    attribution_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(512), nullable=True)
-    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    duration_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    created_at: Mapped[datetime] = _created_at()
+    collection: ClassVar[str] = "assets"
+    project_id: uuid.UUID
+    kind: str
+    storage_key: str
+    sha256: str
+    source_sha: str | None = None
+    source: str
+    license: str
+    attribution_required: bool = False
+    attribution_text: str | None = None
+    commercial_use: bool = True
+    width: int | None = None
+    height: int | None = None
+    duration_ms: int | None = None
 
 
-class Timeline(Base):
+class Timeline(Doc):
     """Editable EDL pointer: current_version moves on undo/redo."""
 
-    __tablename__ = "timelines"
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    current_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    style_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    trend_pack: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    created_at: Mapped[datetime] = _created_at()
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
-    )
+    collection: ClassVar[str] = "timelines"
+    project_id: uuid.UUID
+    current_version: int = 1
+    style_id: str | None = None
+    trend_pack: str | None = None
+    updated_at: datetime = Field(default_factory=_now)
 
 
-class TimelineVersion(Base):
-    """Immutable EDL snapshot; undo/redo = pointer move on timelines.current_version."""
+class TimelineVersion(Doc):
+    """Immutable EDL snapshot; unique (timeline_id, version)."""
 
-    __tablename__ = "timeline_versions"
-    __table_args__ = (UniqueConstraint("timeline_id", "version", name="uq_timeline_version"),)
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    timeline_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("timelines.id"), nullable=False)
-    version: Mapped[int] = mapped_column(Integer, nullable=False)
-    edl: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
-    parent_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = _created_at()
+    collection: ClassVar[str] = "timeline_versions"
+    timeline_id: uuid.UUID
+    version: int
+    edl: dict[str, Any]
+    parent_version: int | None = None
 
 
-class Message(Base):
+class Message(Doc):
     """Chat history + tool calls per project."""
 
-    __tablename__ = "messages"
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    role: Mapped[str] = mapped_column(String(16), nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    tool_calls: Mapped[list[object] | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = _created_at()
+    collection: ClassVar[str] = "messages"
+    project_id: uuid.UUID
+    role: str
+    content: str
+    tool_calls: list[Any] | None = None
 
 
-class Job(Base):
+class Job(Doc):
     """Arq job record: ingest, analysis, render. Idempotent via idempotency_key."""
 
-    __tablename__ = "jobs"
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    project_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("projects.id"), nullable=True)
-    type: Mapped[str] = mapped_column(String(32), nullable=False)
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
-    progress: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
-    payload: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = _created_at()
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
-    )
+    collection: ClassVar[str] = "jobs"
+    project_id: uuid.UUID | None = None
+    type: str
+    status: str = "queued"
+    progress: float = 0.0
+    idempotency_key: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+    updated_at: datetime = Field(default_factory=_now)
 
 
-class Render(Base):
+class Render(Doc):
     """Preview/final render linked to an exact timeline hash."""
 
-    __tablename__ = "renders"
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    timeline_version_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("timeline_versions.id"), nullable=False
-    )
-    timeline_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    profile: Mapped[str] = mapped_column(String(16), nullable=False)
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
-    output_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    attributions: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
-    created_at: Mapped[datetime] = _created_at()
+    collection: ClassVar[str] = "renders"
+    project_id: uuid.UUID
+    timeline_version_id: uuid.UUID
+    timeline_hash: str = ""
+    profile: str
+    status: str = "queued"
+    output_url: str | None = None
+    output_key: str | None = None
+    attributions: list[Any] = Field(default_factory=list)
 
 
-class Analysis(Base):
+class Analysis(Doc):
     """Cached AnalysisBundle pointer: content-hash keyed, shared across projects."""
 
-    __tablename__ = "analyses"
-    __table_args__ = (
-        UniqueConstraint(
-            "source_sha", "analyzer", "version", "params_hash", name="uq_analysis_bundle"
-        ),
-    )
+    collection: ClassVar[str] = "analyses"
+    project_id: uuid.UUID
+    source_sha: str
+    analyzer: str
+    version: str
+    params_hash: str
+    bundle_key: str
 
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    source_sha: Mapped[str] = mapped_column(String(64), nullable=False)
-    analyzer: Mapped[str] = mapped_column(String(32), nullable=False)
-    version: Mapped[str] = mapped_column(String(32), nullable=False)
-    params_hash: Mapped[str] = mapped_column(String(12), nullable=False)
-    bundle_key: Mapped[str] = mapped_column(String(1024), nullable=False)
-    created_at: Mapped[datetime] = _created_at()
+
+class AgentRun(Doc):
+    """One Director run: prompt hash, tools, latency, tokens, cost (Phase 5 T5)."""
+
+    collection: ClassVar[str] = "agent_runs"
+    project_id: uuid.UUID
+    model: str
+    prompt_hash: str
+    tools: list[str] = Field(default_factory=list)
+    stopped: str = ""
+    iterations: int = 0
+    latency_ms: int = 0
+    first_token_ms: int | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cost_usd: float = 0.0

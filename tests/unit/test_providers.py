@@ -49,8 +49,31 @@ async def test_fake_music_search_returns_licensed_tracks() -> None:
         assert isinstance(track.attribution_required, bool)
 
 
+async def test_registry_uses_gemini_only_when_keyed() -> None:
+    from app.providers.gemini import GeminiLLM
+    from app.settings import Settings
+
+    assert isinstance(provider_registry(Settings(GEMINI_API_KEY="k")).llm, GeminiLLM)
+
+
+def test_registry_uses_local_libraries_when_present(tmp_path: object) -> None:
+    from pathlib import Path
+
+    from app.providers.local import LocalImageProvider
+    from app.settings import Settings
+
+    root = Path(str(tmp_path))
+    (root / "images").mkdir()
+    (root / "images" / "manifest.json").write_text("[]")
+    registry = provider_registry(Settings(GEMINI_API_KEY="", ASSETS_DIR=str(root)))
+    assert isinstance(registry.images, LocalImageProvider)
+    assert isinstance(registry.music, FakeMusicProvider)
+
+
 async def test_registry_defaults_to_fakes() -> None:
-    registry = provider_registry()
+    from app.settings import Settings
+
+    registry = provider_registry(Settings(GEMINI_API_KEY="", ASSETS_DIR="/nonexistent"))
     assert isinstance(registry.llm, FakeLLMProvider)
     assert isinstance(registry.music, FakeMusicProvider)
     assert isinstance(registry.images, FakeImageProvider)
@@ -66,8 +89,8 @@ def test_no_vendor_sdks_outside_providers() -> None:
     banned = ("anthropic", "google.generativeai", "google.genai", "openai", "boto3")
     offenders: list[str] = []
     for path in pathlib.Path("app").rglob("*.py"):
-        if path.parts[1] == "providers" or path.name == "storage.py":
-            continue  # providers/ owns vendor SDKs; storage.py owns boto3
+        if path.parts[1] == "providers":
+            continue  # providers/ owns vendor SDKs
         text = path.read_text()
         if any(f"import {mod}" in text for mod in banned):
             offenders.append(str(path))

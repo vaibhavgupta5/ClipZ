@@ -1,6 +1,7 @@
-"""Provider wiring: names -> implementations. Phase 0 resolves everything to fakes."""
+"""Provider wiring: Gemini for LLM work when keyed; local libraries land in Phase 6/7."""
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from app.providers.base import (
     GifProvider,
@@ -18,6 +19,14 @@ from app.providers.fakes import (
     FakeMusicProvider,
     FakeSfxProvider,
 )
+from app.providers.gemini import GeminiLLM
+from app.providers.local import (
+    LocalGifProvider,
+    LocalImageProvider,
+    LocalMemeTemplateProvider,
+    LocalMusicProvider,
+)
+from app.providers.tools import ToolCallingLLM
 from app.settings import Settings, get_settings
 
 
@@ -34,17 +43,33 @@ class ProviderRegistry:
 
 
 def provider_registry(settings: Settings | None = None) -> ProviderRegistry:
-    """Build the registry. Non-'fake' names fail fast until real adapters land."""
+    """Gemini when GEMINI_API_KEY is set; local libraries when their manifests exist; else fakes."""
     settings = settings or get_settings()
-    if settings.MUSIC_PROVIDER != "fake":
-        raise ValueError(
-            f"unknown MUSIC_PROVIDER={settings.MUSIC_PROVIDER!r} (real adapters land in Phase 6)"
+    llm: GeminiLLM | FakeLLMProvider = FakeLLMProvider()
+    if settings.GEMINI_API_KEY:
+        llm = GeminiLLM(
+            settings.GEMINI_API_KEY, settings.GEMINI_MODEL, settings.GEMINI_THINKING_LEVEL
         )
+    root = Path(settings.ASSETS_DIR)
+
+    def has(lib: str) -> bool:
+        return (root / lib / "manifest.json").is_file()
+
     return ProviderRegistry(
-        llm=FakeLLMProvider(),
-        music=FakeMusicProvider(),
-        images=FakeImageProvider(),
-        gifs=FakeGifProvider(),
-        memes=FakeMemeTemplateProvider(),
-        sfx=FakeSfxProvider(),
+        llm=llm,
+        music=LocalMusicProvider(root) if has("music") else FakeMusicProvider(),
+        images=LocalImageProvider(root) if has("images") else FakeImageProvider(),
+        gifs=LocalGifProvider(root) if has("gifs") else FakeGifProvider(),
+        memes=(
+            LocalMemeTemplateProvider(root, Path(settings.WORK_DIR) / "cache" / "memes")
+            if has("memes")
+            else FakeMemeTemplateProvider()
+        ),
+        sfx=FakeSfxProvider(),  # no local SFX pack yet (Phase 6)
     )
+
+
+def director_llm(settings: Settings | None = None) -> ToolCallingLLM:
+    """The Director's tool-calling model (Gemini). Raises when no key is configured."""
+    settings = settings or get_settings()
+    return GeminiLLM(settings.GEMINI_API_KEY, settings.GEMINI_MODEL, settings.GEMINI_THINKING_LEVEL)

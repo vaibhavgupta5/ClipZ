@@ -1,0 +1,737 @@
+[
+  {
+    "id": "music:b386828e-b628-45f6-b900-6441a49cc977",
+    "file": "lofi/b386828e-b628-45f6-b900-6441a49cc977.mp3",
+    "title": "Lofy",
+    "tags": [
+      "lofi"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/317391",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Lofy\" by macouno is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "lofi",
+    "duration_s": 158.53
+  },
+  {
+    "id": "music:3d2e7e62-6c95-4b2b-8e7a-2656ff20d794",
+    "file": "upbeat/3d2e7e62-6c95-4b2b-8e7a-2656ff20d794.mp3",
+    "title": "Super Power Pop Rock",
+    "tags": [
+      "upbeat",
+      "filmscore",
+      "folk",
+      "pop"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1163228",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Super Power Pop Rock\" by Kara Square is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "upbeat",
+    "duration_s": 188.57
+  },
+  {
+    "id": "music:974ea27f-d5d0-4b9e-bf62-afd7f86a79b4",
+    "file": "upbeat/974ea27f-d5d0-4b9e-bf62-afd7f86a79b4.mp3",
+    "title": "Think About You",
+    "tags": [
+      "upbeat",
+      "dance"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1761753",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Think About You\" by Square a Saw is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "upbeat",
+    "duration_s": 176.28
+  },
+  {
+    "id": "music:1462dcef-5471-4dca-9c5e-c71a835b9a02",
+    "file": "upbeat/1462dcef-5471-4dca-9c5e-c71a835b9a02.mp3",
+    "title": "Hola",
+    "tags": [
+      "upbeat",
+      "pop"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1761754",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Hola\" by Square a Saw is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "upbeat",
+    "duration_s": 126.61
+  },
+  {
+    "id": "music:b13b426d-d3b0-43c9-b67f-893ec3b968db",
+    "file": "upbeat/b13b426d-d3b0-43c9-b67f-893ec3b968db.mp3",
+    "title": "A Little Of Hope",
+    "tags": [
+      "upbeat",
+      "pop"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1761752",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"A Little Of Hope\" by Square a Saw is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "upbeat",
+    "duration_s": 139.43
+  },
+  {
+    "id": "music:1a9d920e-8a1e-42d8-b722-6d856cf205da",
+    "file": "upbeat/1a9d920e-8a1e-42d8-b722-6d856cf205da.mp3",
+    "title": "Mona Lisa (Instrumental Version)",
+    "tags": [
+      "upbeat",
+      "folk",
+      "pop"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/628963",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Mona Lisa (Instrumental Version)\" by Josh Woodward (Instrumental Versions) is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "upbeat",
+    "duration_s": 241.04
+  },
+  {
+    "id": "music:b8d9b313-2d4f-410c-a9d8-bd57d7cb4e1d",
+    "file": "cinematic/b8d9b313-2d4f-410c-a9d8-bd57d7cb4e1d.mp3",
+    "title": "Stuttgart",
+    "tags": [
+      "cinematic",
+      "electronic",
+      "electropop",
+      "synthpop"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1317779",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Stuttgart\" by Portrayal is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "cinematic",
+    "duration_s": 215.38
+  },
+  {
+    "id": "music:4140b95b-505c-4011-a6f2-4db6b328dd55",
+    "file": "cinematic/4140b95b-505c-4011-a6f2-4db6b328dd55.mp3",
+    "title": "Drakkar",
+    "tags": [
+      "cinematic",
+      "filmscore"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1465379",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Drakkar\" by Ivan Tregub (BER) is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "cinematic",
+    "duration_s": 319.68
+  },
+  {
+    "id": "music:34466c22-1e98-4293-b014-2b597b7be33b",
+    "file": "cinematic/34466c22-1e98-4293-b014-2b597b7be33b.mp3",
+    "title": "Metamorphosis",
+    "tags": [
+      "cinematic",
+      "electronic",
+      "newage"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1195826",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Metamorphosis\" by zero-project is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "cinematic",
+    "duration_s": 475.63
+  },
+  {
+    "id": "music:8217e1c7-6a8c-4c59-9c9f-82fe9b760322",
+    "file": "cinematic/8217e1c7-6a8c-4c59-9c9f-82fe9b760322.mp3",
+    "title": "Antigone et Créon",
+    "tags": [
+      "cinematic",
+      "classical",
+      "neoclassical"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1687319",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Antigone et Créon\" by Ehma is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "cinematic",
+    "duration_s": 160.69
+  },
+  {
+    "id": "music:1691990d-7e36-41d4-a914-28684f3b0f59",
+    "file": "cinematic/1691990d-7e36-41d4-a914-28684f3b0f59.mp3",
+    "title": "Status Quo",
+    "tags": [
+      "cinematic",
+      "experimental"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1531755",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Status Quo\" by recyclesound is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "cinematic",
+    "duration_s": 164.68
+  },
+  {
+    "id": "music:4ff91c31-6c79-4661-803f-e18e598d1434",
+    "file": "electronic/4ff91c31-6c79-4661-803f-e18e598d1434.mp3",
+    "title": "Electronic",
+    "tags": [
+      "electronic",
+      "electronic",
+      "techno"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/908345",
+    "license": "CC-BY-2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/de/",
+    "attribution_required": true,
+    "attribution_text": "\"Electronic\" by Josef Sejrek aka DJJUPP is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/de/.",
+    "commercial_use": true,
+    "genre": "electronic",
+    "duration_s": 467.03
+  },
+  {
+    "id": "music:fd0c7ca0-7843-4320-bfbd-32d3673b5ed1",
+    "file": "electronic/fd0c7ca0-7843-4320-bfbd-32d3673b5ed1.mp3",
+    "title": "Hardcore Scm '12 - Electrons [oldschool hardcore]",
+    "tags": [
+      "electronic"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/998615",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Hardcore Scm '12 - Electrons [oldschool hardcore]\" by Hardcore Scm is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "electronic",
+    "duration_s": 595.5
+  },
+  {
+    "id": "music:30fc05fb-b630-404c-8d63-70ee98ad77db",
+    "file": "electronic/30fc05fb-b630-404c-8d63-70ee98ad77db.mp3",
+    "title": "an industrial electronic approach to techno",
+    "tags": [
+      "electronic",
+      "techno"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/225617",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"an industrial electronic approach to techno\" by direct_y is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "electronic",
+    "duration_s": 247.71
+  },
+  {
+    "id": "music:00215c60-3632-4763-912b-c0eafb68c8d2",
+    "file": "electronic/00215c60-3632-4763-912b-c0eafb68c8d2.mp3",
+    "title": "electron project - crazy winter(Original Full Mix)",
+    "tags": [
+      "electronic"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/718590",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"electron project - crazy winter(Original Full Mix)\" by Electron Project is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "electronic",
+    "duration_s": 370.2
+  },
+  {
+    "id": "music:d6cf7913-793d-4a5f-8944-6a301e153a5e",
+    "file": "electronic/d6cf7913-793d-4a5f-8944-6a301e153a5e.mp3",
+    "title": "The Dance Of The Electrons",
+    "tags": [
+      "electronic",
+      "electronic"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/499186",
+    "license": "CC-BY-2.0",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/de/",
+    "attribution_required": true,
+    "attribution_text": "\"The Dance Of The Electrons\" by SBUT is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/de/.",
+    "commercial_use": true,
+    "genre": "electronic",
+    "duration_s": 312.03
+  },
+  {
+    "id": "music:d71fa1cd-d9f8-4e3f-aafe-8eec666c177b",
+    "file": "hiphop/d71fa1cd-d9f8-4e3f-aafe-8eec666c177b.mp3",
+    "title": "electronique beat hip hop",
+    "tags": [
+      "hiphop"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/290808",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"electronique beat hip hop\" by dj beck is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "hiphop",
+    "duration_s": 225.04
+  },
+  {
+    "id": "music:19043c01-cec4-458c-bd38-8c89401156f5",
+    "file": "hiphop/19043c01-cec4-458c-bd38-8c89401156f5.mp3",
+    "title": "Hip-Hop 1",
+    "tags": [
+      "hiphop",
+      "hiphop"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/164177",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Hip-Hop 1\" by Deff Syndicate is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "hiphop",
+    "duration_s": 240.0
+  },
+  {
+    "id": "music:56bce3b1-002f-4ed9-9015-a8cfd9f1d5f0",
+    "file": "hiphop/56bce3b1-002f-4ed9-9015-a8cfd9f1d5f0.mp3",
+    "title": "Hip-Hop 2",
+    "tags": [
+      "hiphop",
+      "hiphop",
+      "rap"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/163760",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Hip-Hop 2\" by Deff Syndicate is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "hiphop",
+    "duration_s": 228.62
+  },
+  {
+    "id": "music:814c46a1-35b2-4ebd-859c-8121667cf77f",
+    "file": "hiphop/814c46a1-35b2-4ebd-859c-8121667cf77f.mp3",
+    "title": "Hip-Hop 3",
+    "tags": [
+      "hiphop"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/164839",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Hip-Hop 3\" by Deff Syndicate is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "hiphop",
+    "duration_s": 255.17
+  },
+  {
+    "id": "music:63147c60-daad-4bc6-bb23-3c309d94ee03",
+    "file": "hiphop/63147c60-daad-4bc6-bb23-3c309d94ee03.mp3",
+    "title": "Hip-Hop 4",
+    "tags": [
+      "hiphop",
+      "hiphop"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/163761",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Hip-Hop 4\" by Deff Syndicate is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "hiphop",
+    "duration_s": 275.05
+  },
+  {
+    "id": "music:bb28a997-c363-449c-bdb7-6cf60ad4f251",
+    "file": "acoustic/bb28a997-c363-449c-bdb7-6cf60ad4f251.mp3",
+    "title": "group 8 acoustic guitar (master)",
+    "tags": [
+      "acoustic"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/465206",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"group 8 acoustic guitar (master)\" by Stellar Art Wars Free License is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "acoustic",
+    "duration_s": 179.98
+  },
+  {
+    "id": "music:dd1c97ce-2077-4739-a6e1-953fd7ed922c",
+    "file": "acoustic/dd1c97ce-2077-4739-a6e1-953fd7ed922c.mp3",
+    "title": "Did You Ever (acoustic guitar fingerpicking) - Lenny Lionstar",
+    "tags": [
+      "acoustic",
+      "americana",
+      "folk",
+      "gothic"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1493981",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Did You Ever (acoustic guitar fingerpicking) - Lenny Lionstar\" by Lenny Wiles Lionstar GALAXY BANDSTAND is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "acoustic",
+    "duration_s": 277.74
+  },
+  {
+    "id": "music:7bdb9782-2d15-4680-99b0-204b39d66166",
+    "file": "acoustic/7bdb9782-2d15-4680-99b0-204b39d66166.mp3",
+    "title": "Madly, Deeply (Acoustic)",
+    "tags": [
+      "acoustic",
+      "country",
+      "pop"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1204668",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Madly, Deeply (Acoustic)\" by Melanie Ungar is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "acoustic",
+    "duration_s": 247.65
+  },
+  {
+    "id": "music:ea4ef155-35a9-46bb-b136-4e4f8f2223d9",
+    "file": "acoustic/ea4ef155-35a9-46bb-b136-4e4f8f2223d9.mp3",
+    "title": "Lucky Acoustic",
+    "tags": [
+      "acoustic",
+      "corporate",
+      "filmscore",
+      "folk"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1540859",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Lucky Acoustic\" by Jesse Keller is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "acoustic",
+    "duration_s": 202.0
+  },
+  {
+    "id": "music:0436564c-41a4-42a1-9fe9-f4e68c0bc7b7",
+    "file": "acoustic/0436564c-41a4-42a1-9fe9-f4e68c0bc7b7.mp3",
+    "title": "Nocturno No. 2",
+    "tags": [
+      "acoustic",
+      "classical",
+      "progressiverock"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1374949",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Nocturno No. 2\" by Daniel Bautista is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "acoustic",
+    "duration_s": 164.89
+  },
+  {
+    "id": "music:394ae39d-127a-4989-8aee-9a1a78619c1b",
+    "file": "corporate/394ae39d-127a-4989-8aee-9a1a78619c1b.mp3",
+    "title": "Inspiring Corporate",
+    "tags": [
+      "corporate",
+      "corporate",
+      "intro"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1670484",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Inspiring Corporate\" by Soundrider/Dope is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "corporate",
+    "duration_s": 148.0
+  },
+  {
+    "id": "music:7d573956-f2f0-457a-9ed6-3b2de0280c4e",
+    "file": "ambient/7d573956-f2f0-457a-9ed6-3b2de0280c4e.mp3",
+    "title": "Ambient Dance",
+    "tags": [
+      "ambient",
+      "electronic",
+      "trance"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/23557",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Ambient Dance\" by Zeropage is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "ambient",
+    "duration_s": 228.75
+  },
+  {
+    "id": "music:b3071a42-fa8e-403e-9bf6-ae052760ff9a",
+    "file": "ambient/b3071a42-fa8e-403e-9bf6-ae052760ff9a.mp3",
+    "title": "Ambient Flight (Electro Vocal Mix)",
+    "tags": [
+      "ambient",
+      "ambient",
+      "downtempo",
+      "electronica"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/20237",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Ambient Flight (Electro Vocal Mix)\" by Zeropage is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "ambient",
+    "duration_s": 264.0
+  },
+  {
+    "id": "music:7ddc1cd0-615c-4b1d-997f-74b93335693f",
+    "file": "ambient/7ddc1cd0-615c-4b1d-997f-74b93335693f.mp3",
+    "title": "Ambient India",
+    "tags": [
+      "ambient",
+      "electronic",
+      "indian",
+      "world"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/20232",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Ambient India\" by Zeropage is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "ambient",
+    "duration_s": 386.18
+  },
+  {
+    "id": "music:297e676f-18e5-478c-9a39-e707f56eb5be",
+    "file": "ambient/297e676f-18e5-478c-9a39-e707f56eb5be.mp3",
+    "title": "Ambient Voyager",
+    "tags": [
+      "ambient",
+      "chillout",
+      "downtempo",
+      "electronic"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/20231",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Ambient Voyager\" by Zeropage is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "ambient",
+    "duration_s": 234.98
+  },
+  {
+    "id": "music:45bc4dac-af0d-4895-9d8a-f8a5bedb2b6a",
+    "file": "ambient/45bc4dac-af0d-4895-9d8a-f8a5bedb2b6a.mp3",
+    "title": "Meio Ambiente",
+    "tags": [
+      "ambient",
+      "electronic",
+      "experimental"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/26646",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Meio Ambiente\" by NeLaS is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "ambient",
+    "duration_s": 140.57
+  },
+  {
+    "id": "music:27bbb433-1b9c-40ee-a2ef-0087679b9118",
+    "file": "corporate/27bbb433-1b9c-40ee-a2ef-0087679b9118.mp3",
+    "title": "Ruslan Latypov - Corporate Music",
+    "tags": [
+      "corporate",
+      "corporate"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1693123",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Ruslan Latypov - Corporate Music\" by Ruslan Latypov is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "corporate",
+    "duration_s": 147.6
+  },
+  {
+    "id": "music:031b2262-fb12-4742-b412-6d1c0cc63d0c",
+    "file": "corporate/031b2262-fb12-4742-b412-6d1c0cc63d0c.mp3",
+    "title": "The Corporate Upbeat",
+    "tags": [
+      "corporate",
+      "corporate",
+      "filmscore"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1670594",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"The Corporate Upbeat\" by Soundrider/Dope is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "corporate",
+    "duration_s": 121.87
+  },
+  {
+    "id": "music:3fe48e8c-314e-4bbe-a4e9-7c7027b46599",
+    "file": "corporate/3fe48e8c-314e-4bbe-a4e9-7c7027b46599.mp3",
+    "title": "Depressive Motive - Внутри",
+    "tags": [
+      "corporate",
+      "hiphop",
+      "rap"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/1291883",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Depressive Motive - Внутри\" by Depressive Motive is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "corporate",
+    "duration_s": 143.98
+  },
+  {
+    "id": "music:0ba77963-37bf-465e-8491-4ddfb7c22373",
+    "file": "corporate/0ba77963-37bf-465e-8491-4ddfb7c22373.mp3",
+    "title": "Motivation",
+    "tags": [
+      "corporate"
+    ],
+    "source": "openverse/jamendo",
+    "source_url": "https://www.jamendo.com/track/326867",
+    "license": "CC-BY-3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "attribution_required": true,
+    "attribution_text": "\"Motivation\" by Ah-son Emmanuel is licensed under CC BY 3.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/3.0/.",
+    "commercial_use": true,
+    "genre": "corporate",
+    "duration_s": 237.66
+  },
+  {
+    "id": "music:2f5d351d-a1de-41d9-ba70-c73ba285c875",
+    "file": "lofi/2f5d351d-a1de-41d9-ba70-c73ba285c875.mp3",
+    "title": "Lofi Jazz Organ Loop 95 BPM.wav",
+    "tags": [
+      "lofi"
+    ],
+    "source": "openverse/freesound",
+    "source_url": "https://freesound.org/people/holizna/sounds/629154",
+    "license": "CC-CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": true,
+    "genre": "lofi",
+    "duration_s": 40.42
+  },
+  {
+    "id": "music:795da5a7-b63b-43e9-8f50-61b9e2b1a5f0",
+    "file": "lofi/795da5a7-b63b-43e9-8f50-61b9e2b1a5f0.mp3",
+    "title": "Lofi Guitar Loop EM 119 BPM(3).wav",
+    "tags": [
+      "lofi"
+    ],
+    "source": "openverse/freesound",
+    "source_url": "https://freesound.org/people/holizna/sounds/629150",
+    "license": "CC-CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": true,
+    "genre": "lofi",
+    "duration_s": 38.32
+  },
+  {
+    "id": "music:2ede71c8-18be-4a17-ab28-aa3bb1dac503",
+    "file": "lofi/2ede71c8-18be-4a17-ab28-aa3bb1dac503.mp3",
+    "title": "Chill Lofi Melody Loop 95 BPM.wav",
+    "tags": [
+      "lofi"
+    ],
+    "source": "openverse/freesound",
+    "source_url": "https://freesound.org/people/holizna/sounds/629147",
+    "license": "CC-CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": true,
+    "genre": "lofi",
+    "duration_s": 40.42
+  },
+  {
+    "id": "music:dc318916-e4a2-4902-a481-6140e7b4ea23",
+    "file": "lofi/dc318916-e4a2-4902-a481-6140e7b4ea23.mp3",
+    "title": "Chill Lofi Epiano Loop 80 BPM.wav",
+    "tags": [
+      "lofi"
+    ],
+    "source": "openverse/freesound",
+    "source_url": "https://freesound.org/people/holizna/sounds/629170",
+    "license": "CC-CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": true,
+    "genre": "lofi",
+    "duration_s": 24.0
+  }
+]

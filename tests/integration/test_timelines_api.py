@@ -24,13 +24,6 @@ async def _client() -> AsyncClient:
     return AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": API_KEY})
 
 
-async def _cleanup(project_id: str) -> None:
-    from tests.integration.cleanup import cleanup_user
-
-    _ = project_id
-    await cleanup_user(API_KEY)
-
-
 async def test_project_lifecycle_ops_undo_redo() -> None:
     project_id = ""
     # 401 without key (keyless client)
@@ -81,5 +74,3 @@ async def test_project_lifecycle_ops_undo_redo() -> None:
 
         redo = await client.post(f"/projects/{project_id}/redo")
         assert redo.json()["version"] == 2
-
-    await _cleanup(project_id)

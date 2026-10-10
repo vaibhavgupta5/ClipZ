@@ -1,19 +1,31 @@
 """Timeline versioning: pure pointer log + Postgres persistence.
 
-Undo/redo are pointer moves on timelines.current_version. Edit-after-undo
+Undo/redo are pointer moves on timelines.current_version (MongoDB). Edit-after-undo
 appends a new version whose parent is the pointer (old redo chain kept, unreachable).
 """
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from pymongo.errors import DuplicateKeyError
 
-from app.models import Timeline as TimelineRow
-from app.models import TimelineVersion as TimelineVersionRow
+from app import db as db_ops
+from app.db import Database
+from app.models import Timeline as TimelineDoc
+from app.models import TimelineVersion as TimelineVersionDoc
 from app.timeline.schema import Timeline
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def redo_target(current: int, links: list[tuple[int, int | None]]) -> int | None:
+    """Newest version whose parent is ``current`` (the branch made most recently)."""
+    children = [v for v, parent in links if parent == current]
+    return max(children) if children else None
 
 
 @dataclass(frozen=True)
@@ -41,22 +53,18 @@ class VersionLog:
         return VersionLog(entries=(*self.entries, entry), current=version)
 
     def undo(self) -> "VersionLog":
-        """Move pointer back one version (min: first)."""
-        if self.current <= 1:
+        """Move pointer to the current version's parent (no-op at the root)."""
+        parent = self.parent_of(self.current)
+        if parent is None:
             return self
-        return VersionLog(entries=self.entries, current=self.current - 1)
+        return VersionLog(entries=self.entries, current=parent)
 
     def redo(self) -> "VersionLog":
-        """Move pointer forward only along the linear chain (no redo past a branch)."""
-        versions = sorted(e.version for e in self.entries)
-        nxt = [v for v in versions if v > self.current]
-        if not nxt:
+        """Move pointer to the newest child of the current version (no-op without one)."""
+        target = redo_target(self.current, [(e.version, e.parent) for e in self.entries])
+        if target is None:
             return self
-        # Redo is valid only if the next version's parent is the pointer.
-        entry = next(e for e in self.entries if e.version == nxt[0])
-        if entry.parent != self.current:
-            return self
-        return VersionLog(entries=self.entries, current=nxt[0])
+        return VersionLog(entries=self.entries, current=target)
 
     def get(self, version: int) -> VersionEntry | None:
         """Fetch an entry by version number."""
@@ -69,76 +77,95 @@ class VersionLog:
 
 
 async def save_version(
-    session: AsyncSession, timeline_id: uuid.UUID, tl: Timeline, parent: int | None
+    db: Database, timeline_id: uuid.UUID, tl: Timeline, parent: int | None
 ) -> tuple[int, Timeline]:
-    """Persist an EDL snapshot stamped with its version; bump current pointer."""
-    max_v = await session.scalar(
-        select(func.max(TimelineVersionRow.version)).where(
-            TimelineVersionRow.timeline_id == timeline_id
-        )
-    )
-    version = (max_v or 0) + 1
-    stamped = tl.model_copy(update={"version": version})
-    row = await session.get(TimelineRow, timeline_id)
-    if row is None:
+    """Persist an EDL snapshot stamped with its version; bump the current pointer.
+
+    The unique (timeline_id, version) index makes concurrent saves safe: a loser
+    retries with the next number.
+    """
+    if await db_ops.get(db, TimelineDoc, timeline_id) is None:
         raise ValueError(f"timeline {timeline_id} does not exist")
-    session.add(
-        TimelineVersionRow(
-            timeline_id=timeline_id,
-            version=version,
-            edl=stamped.model_dump(mode="json"),
-            parent_version=parent,
+    for _ in range(5):
+        last = await db_ops.find_one(
+            db, TimelineVersionDoc, {"timeline_id": timeline_id}, sort=[("version", -1)]
         )
-    )
-    row.current_version = version
-    await session.flush()
-    return (version, stamped)
+        version = (last.version if last else 0) + 1
+        stamped = tl.model_copy(update={"version": version})
+        try:
+            await db_ops.insert(
+                db,
+                TimelineVersionDoc(
+                    timeline_id=timeline_id,
+                    version=version,
+                    edl=stamped.model_dump(mode="json"),
+                    parent_version=parent,
+                ),
+            )
+        except DuplicateKeyError:
+            continue
+        await db_ops.update(
+            db, TimelineDoc, timeline_id, {"current_version": version, "updated_at": _now()}
+        )
+        return (version, stamped)
+    raise RuntimeError(f"timeline {timeline_id}: could not allocate a version number")
 
 
-async def load_version(session: AsyncSession, timeline_id: uuid.UUID, version: int) -> Timeline:
+async def load_version(db: Database, timeline_id: uuid.UUID, version: int) -> Timeline:
     """Load one snapshot as a Timeline."""
-    row = await session.scalar(
-        select(TimelineVersionRow).where(
-            TimelineVersionRow.timeline_id == timeline_id,
-            TimelineVersionRow.version == version,
-        )
+    row = await db_ops.find_one(
+        db, TimelineVersionDoc, {"timeline_id": timeline_id, "version": version}
     )
     if row is None:
         raise ValueError(f"timeline {timeline_id} has no version {version}")
-    edl: dict[str, Any] = dict(row.edl)
-    return Timeline.model_validate(edl)
+    return Timeline.model_validate(row.edl)
 
 
-async def list_versions(session: AsyncSession, timeline_id: uuid.UUID) -> list[VersionEntry]:
+async def list_versions(db: Database, timeline_id: uuid.UUID) -> list[VersionEntry]:
     """All snapshots for a timeline, oldest first."""
-    rows = (
-        await session.scalars(
-            select(TimelineVersionRow)
-            .where(TimelineVersionRow.timeline_id == timeline_id)
-            .order_by(TimelineVersionRow.version)
-        )
-    ).all()
+    rows = await db_ops.find(
+        db, TimelineVersionDoc, {"timeline_id": timeline_id}, sort=[("version", 1)]
+    )
     return [VersionEntry(version=r.version, parent=r.parent_version, edl=dict(r.edl)) for r in rows]
 
 
-async def get_current(session: AsyncSession, timeline_id: uuid.UUID) -> int:
+async def get_current(db: Database, timeline_id: uuid.UUID) -> int:
     """Current version pointer."""
-    row = await session.get(TimelineRow, timeline_id)
+    row = await db_ops.get(db, TimelineDoc, timeline_id)
     if row is None:
         raise ValueError(f"timeline {timeline_id} does not exist")
     return row.current_version
 
 
-async def set_current(session: AsyncSession, timeline_id: uuid.UUID, version: int) -> None:
+async def set_current(db: Database, timeline_id: uuid.UUID, version: int) -> None:
     """Move the pointer (undo/redo) without deleting history."""
-    exists = await session.scalar(
-        select(func.count())
-        .select_from(TimelineVersionRow)
-        .where(TimelineVersionRow.timeline_id == timeline_id, TimelineVersionRow.version == version)
+    exists = await db_ops.find_one(
+        db, TimelineVersionDoc, {"timeline_id": timeline_id, "version": version}
     )
-    if not exists:
+    if exists is None:
         raise ValueError(f"timeline {timeline_id} has no version {version}")
-    row = await session.get(TimelineRow, timeline_id)
-    assert row is not None  # version rows FK-require the timeline row
-    row.current_version = version
-    await session.flush()
+    await db_ops.update(
+        db, TimelineDoc, timeline_id, {"current_version": version, "updated_at": _now()}
+    )
+
+
+async def undo(db: Database, timeline_id: uuid.UUID) -> int:
+    """Move the pointer to the current version's parent; return the version now current."""
+    current = await get_current(db, timeline_id)
+    entry = await db_ops.find_one(
+        db, TimelineVersionDoc, {"timeline_id": timeline_id, "version": current}
+    )
+    target = entry.parent_version if entry and entry.parent_version else current
+    if target != current:
+        await set_current(db, timeline_id, target)
+    return target
+
+
+async def redo(db: Database, timeline_id: uuid.UUID) -> int:
+    """Move the pointer to the newest child of the current version; return it."""
+    current = await get_current(db, timeline_id)
+    links = [(e.version, e.parent) for e in await list_versions(db, timeline_id)]
+    target = redo_target(current, links) or current
+    if target != current:
+        await set_current(db, timeline_id, target)
+    return target

@@ -1,10 +1,12 @@
 """Segment-parallel renderer: hash-cached slices, concat, full audio pass, mux."""
 
 import asyncio
+import collections
 import hashlib
 import json
 import re
 import subprocess
+import threading
 import unicodedata
 from collections.abc import Callable
 from pathlib import Path
@@ -49,22 +51,35 @@ def _run_with_progress(
     if not args:
         raise RenderError("bad_args", "empty ffmpeg arg list")
     full = [*args[:-1], "-progress", "pipe:1", "-nostats", args[-1]]
-    proc = subprocess.Popen(full, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    out_time = re.compile(r"out_time_ms=(\d+)")
+    proc = subprocess.Popen(
+        full, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    # Drain stderr concurrently: if only stdout is read, a chatty ffmpeg (libass logs one
+    # line per caption event) fills the stderr pipe and both processes block forever.
+    tail: collections.deque[str] = collections.deque(maxlen=200)
+    assert proc.stderr is not None and proc.stdout is not None
+    drain = threading.Thread(target=lambda: tail.extend(proc.stderr), daemon=True)  # type: ignore[arg-type]
+    drain.start()
+    killer = threading.Timer(timeout_s, proc.kill)
+    killer.start()
+    # ffmpeg reports out_time_ms in MICROseconds (historical naming quirk); prefer out_time_us.
+    out_time = re.compile(r"out_time_(?:us|ms)=(\d+)")
     try:
-        assert proc.stdout is not None
         for line in proc.stdout:
             match = out_time.match(line.strip())
             if match and duration_s > 0:
-                frac = min(1.0, int(match.group(1)) / 1000.0 / duration_s)
+                frac = min(1.0, int(match.group(1)) / 1_000_000 / duration_s)
                 on_progress(base + span * frac)
-        _, stderr = proc.communicate(timeout=timeout_s)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        raise RenderError("ffmpeg_timeout", "ffmpeg render timed out") from None
+        proc.wait()
+    finally:
+        timed_out = not killer.is_alive()
+        killer.cancel()
+        drain.join(timeout=5)
+    if timed_out and proc.returncode != 0:
+        raise RenderError("ffmpeg_timeout", f"ffmpeg render timed out after {timeout_s}s")
     if proc.returncode != 0:
         raise RenderError(
-            "ffmpeg_failed", f"ffmpeg exit {proc.returncode}: {(stderr or '')[-2000:]}"
+            "ffmpeg_failed", f"ffmpeg exit {proc.returncode}: {''.join(tail)[-2000:]}"
         )
 
 
@@ -164,7 +179,7 @@ async def render_timeline(
     on_progress(0.95)
 
     out_hash = _timeline_hash(tl, profile)
-    out_key = f"renders/{out_hash}.mp4"
+    out_key = f"renders/{tl.project_id}/{profile.name}-{out_hash}.mp4"
     out_local = work / "out.mp4"
     await asyncio.to_thread(
         run_ffmpeg,

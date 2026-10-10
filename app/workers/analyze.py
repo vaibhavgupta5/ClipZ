@@ -10,10 +10,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app import db as db_module
+from app import db as db_ops
 from app.analysis.beats import detect_beats
 from app.analysis.cache import load_cached, save_bundle
 from app.analysis.emphasis import tag_emphasis
@@ -24,6 +21,7 @@ from app.analysis.models import AnalysisBundle
 from app.analysis.romanize import romanize
 from app.analysis.scenes import SceneDetector
 from app.analysis.vad import EnergyVad
+from app.db import Database
 from app.media.probe import probe_duration_s
 from app.models import Job
 from app.models import Timeline as TimelineRow
@@ -37,12 +35,13 @@ ANALYZER = "full"
 VERSION = "1"
 
 
-def default_stages() -> dict[str, Any]:
-    """Production stages: real signals, real ASR (needs faster-whisper installed)."""
+def default_stages(settings: Settings | None = None) -> dict[str, Any]:
+    """Production stages: real signals, real ASR (faster-whisper, WHISPER_MODEL)."""
     from app.analysis.asr_whisper import FasterWhisperTranscriber
+    from app.settings import get_settings
 
     return {
-        "transcriber": FasterWhisperTranscriber(),
+        "transcriber": FasterWhisperTranscriber((settings or get_settings()).WHISPER_MODEL),
         "vad": EnergyVad(),
         "scenes": SceneDetector(),
         "energy": EnergyAnalyzer(),
@@ -55,7 +54,7 @@ def default_stages() -> dict[str, Any]:
 
 def _default_llm(settings: Settings) -> LLMProvider | None:
     """LLM when keys are configured, else None (beats skipped)."""
-    if not (settings.ANTHROPIC_API_KEY or settings.GEMINI_API_KEY):
+    if not settings.GEMINI_API_KEY:
         return None
     from app.providers.registry import provider_registry
 
@@ -129,34 +128,26 @@ async def run_stages(
 
 
 async def _set_job(
-    session: AsyncSession, job_id: uuid.UUID, status: str, progress: float, error: str = ""
+    db: Database, job_id: uuid.UUID, status: str, progress: float, error: str = ""
 ) -> None:
-    job = await session.get(Job, job_id)
-    if job is None:
-        raise ValueError(f"job {job_id} does not exist")
-    job.status = status
-    job.progress = progress
-    job.error = error or None
-    await session.commit()
+    await db_ops.update(
+        db, Job, job_id, {"status": status, "progress": progress, "error": error or None}
+    )
 
 
 async def _ensure_timeline(
-    session: AsyncSession, project_id: uuid.UUID, bundle: AnalysisBundle, duration_s: float
+    db: Database, project_id: uuid.UUID, bundle: AnalysisBundle, duration_s: float
 ) -> None:
     """Create timeline v1 from the bundle when the project has none yet."""
-    existing = await session.scalar(select(TimelineRow).where(TimelineRow.project_id == project_id))
-    if existing is not None:
+    if await db_ops.find_one(db, TimelineRow, {"project_id": project_id}) is not None:
         return
     tl = Timeline(
         project_id=project_id,
         transcript=bundle.transcript,
         video_clips=[VideoClip(id="c1", asset="master", src_in=0.0, src_out=duration_s)],
     )
-    row = TimelineRow(project_id=project_id, current_version=0)
-    session.add(row)
-    await session.flush()
-    await save_version(session, row.id, tl, parent=None)
-    await session.flush()
+    row = await db_ops.insert(db, TimelineRow(project_id=project_id, current_version=0))
+    await save_version(db, row.id, tl, parent=None)
 
 
 async def analyze_asset(
@@ -175,41 +166,41 @@ async def analyze_asset(
     jid, pid = uuid.UUID(job_id), uuid.UUID(project_id)
     store = get_storage(settings)
     base = prefix or f"projects/{pid}"
-    params: dict[str, object] = {"language": language, "caption_script": caption_script}
-    engine = db_module.create_engine(settings)
+    params: dict[str, object] = {
+        "language": language,
+        "caption_script": caption_script,
+        "asr_model": settings.WHISPER_MODEL,
+    }
+    db = db_ops.get_db(settings)
     try:
-        factory = db_module.session_factory(engine)
-        async with factory() as session:
-            hit = await load_cached(session, store, pid, source_sha, ANALYZER, VERSION, params)
-            if hit is not None:
-                await _set_job(session, jid, "done", 1.0)
-                return {"status": "done", "reused": True}
-            try:
-                async with factory() as work:
-                    result = await _run_analysis(
-                        work,
-                        store,
-                        jid,
-                        pid,
-                        source_sha,
-                        base,
-                        language,
-                        caption_script,
-                        params,
-                        stages or default_stages(),
-                        _default_llm(settings),
-                    )
-                return result
-            except Exception as exc:
-                async with factory() as work:
-                    await _set_job(work, jid, "failed", 1.0, f"{type(exc).__name__}: {exc}")
-                return {"status": "failed", "error": str(exc)}
-    finally:
-        await engine.dispose()
+        hit = await load_cached(db, store, pid, source_sha, ANALYZER, VERSION, params)
+        if hit is not None:
+            # Same bytes analysed before (maybe another project): give THIS project a timeline.
+            master = store.path_for(f"{base}/master.mp4")
+            duration_s = await asyncio.to_thread(probe_duration_s, str(master))
+            await _ensure_timeline(db, pid, hit, duration_s)
+            await _set_job(db, jid, "done", 1.0)
+            return {"status": "done", "reused": True}
+        return await _run_analysis(
+            db,
+            store,
+            jid,
+            pid,
+            source_sha,
+            base,
+            language,
+            caption_script,
+            params,
+            stages or default_stages(settings),
+            _default_llm(settings),
+        )
+    except Exception as exc:
+        await _set_job(db, jid, "failed", 1.0, f"{type(exc).__name__}: {exc}")
+        return {"status": "failed", "error": str(exc)}
 
 
 async def _run_analysis(
-    session: AsyncSession,
+    db: Database,
     store: Storage,
     jid: uuid.UUID,
     pid: uuid.UUID,
@@ -221,7 +212,7 @@ async def _run_analysis(
     stages: dict[str, Any],
     llm: LLMProvider | None,
 ) -> dict[str, object]:
-    await _set_job(session, jid, "running", 0.1)
+    await _set_job(db, jid, "running", 0.1)
     with tempfile.TemporaryDirectory(prefix="reelforge-analysis-") as tmp:
         master_local = Path(tmp) / "master.mp4"
         wav_local = Path(tmp) / "asr.wav"
@@ -231,7 +222,7 @@ async def _run_analysis(
         except KeyError as exc:
             raise ValueError(f"analysis input missing: {exc}") from None
         duration_s = await asyncio.to_thread(probe_duration_s, str(master_local))
-        await _set_job(session, jid, "running", 0.2)
+        await _set_job(db, jid, "running", 0.2)
 
         bundle = await run_stages(
             str(master_local),
@@ -241,10 +232,9 @@ async def _run_analysis(
             caption_script=caption_script,
             llm=llm,
         )
-        await _set_job(session, jid, "running", 0.8)
+        await _set_job(db, jid, "running", 0.8)
 
-        await save_bundle(session, store, pid, source_sha, ANALYZER, VERSION, params, bundle)
-        await _ensure_timeline(session, pid, bundle, duration_s)
-        await session.commit()
-    await _set_job(session, jid, "done", 1.0)
+        await save_bundle(db, store, pid, source_sha, ANALYZER, VERSION, params, bundle)
+        await _ensure_timeline(db, pid, bundle, duration_s)
+    await _set_job(db, jid, "done", 1.0)
     return {"status": "done", "reused": False}

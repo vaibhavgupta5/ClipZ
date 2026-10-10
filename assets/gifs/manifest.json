@@ -1,0 +1,121 @@
+[
+  {
+    "id": "gifs:d8fdc3ce-47d8-4f07-ad6a-95935e1d1eed",
+    "file": "d8fdc3ce-47d8-4f07-ad6a-95935e1d1eed.mp4",
+    "title": "HAPPY",
+    "tags": [
+      "happy"
+    ],
+    "source": "openverse/wikimedia",
+    "source_url": "https://commons.wikimedia.org/w/index.php?curid=165314394",
+    "license": "CC-BY-4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "attribution_required": true,
+    "attribution_text": "\"HAPPY\" by Ssamdog is licensed under CC BY 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/4.0/.",
+    "commercial_use": true,
+    "width": 1000,
+    "height": 1000
+  },
+  {
+    "id": "gifs:81d2f1f7-9fe2-4f7a-9cfe-9c34702516ad",
+    "file": "81d2f1f7-9fe2-4f7a-9cfe-9c34702516ad.mp4",
+    "title": "Merry-christmas",
+    "tags": [
+      "happy"
+    ],
+    "source": "openverse/wikimedia",
+    "source_url": "https://commons.wikimedia.org/w/index.php?curid=17701734",
+    "license": "CC-CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": true,
+    "width": 550,
+    "height": 389
+  },
+  {
+    "id": "gifs:41585f9c-570d-46de-b7a8-736586bc6f0b",
+    "file": "41585f9c-570d-46de-b7a8-736586bc6f0b.mp4",
+    "title": "BBBB Dance 2024-02-18",
+    "tags": [
+      "dance"
+    ],
+    "source": "openverse/wikimedia",
+    "source_url": "https://commons.wikimedia.org/w/index.php?curid=145505870",
+    "license": "CC-CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/deed.en/",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": true,
+    "width": 800,
+    "height": 600
+  },
+  {
+    "id": "gifs:11c92b44-2569-48c1-ba05-c7438fe4126d",
+    "file": "11c92b44-2569-48c1-ba05-c7438fe4126d.mp4",
+    "title": "Head-isolation dance 2023-12-28",
+    "tags": [
+      "dance"
+    ],
+    "source": "openverse/wikimedia",
+    "source_url": "https://commons.wikimedia.org/w/index.php?curid=143003615",
+    "license": "CC-CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/deed.en/",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": true,
+    "width": 400,
+    "height": 400
+  },
+  {
+    "id": "gifs:fd83eea6-6281-45ff-8de0-28d0da79fa9a",
+    "file": "fd83eea6-6281-45ff-8de0-28d0da79fa9a.mp4",
+    "title": "Cat paws kneading",
+    "tags": [
+      "cat"
+    ],
+    "source": "openverse/wikimedia",
+    "source_url": "https://commons.wikimedia.org/w/index.php?curid=105838320",
+    "license": "CC-BY-2.5",
+    "license_url": "https://creativecommons.org/licenses/by/2.5/",
+    "attribution_required": true,
+    "attribution_text": "\"Cat paws kneading\" by Couch-scratching-cats is licensed under CC BY 2.5. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.5/.",
+    "commercial_use": true,
+    "width": 496,
+    "height": 542
+  },
+  {
+    "id": "gifs:57f0d87b-3fde-49d5-97bd-20cc981e2ab6",
+    "file": "57f0d87b-3fde-49d5-97bd-20cc981e2ab6.mp4",
+    "title": "La-cat",
+    "tags": [
+      "cat"
+    ],
+    "source": "openverse/wikimedia",
+    "source_url": "https://commons.wikimedia.org/w/index.php?curid=132780577",
+    "license": "CC-BY-2.5",
+    "license_url": "https://creativecommons.org/licenses/by/2.5/",
+    "attribution_required": true,
+    "attribution_text": "\"La-cat\" is licensed under CC BY 2.5. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.5/.",
+    "commercial_use": true,
+    "width": 334,
+    "height": 318
+  },
+  {
+    "id": "gifs:70dc16b9-1c8e-4447-9489-f9835368d797",
+    "file": "70dc16b9-1c8e-4447-9489-f9835368d797.mp4",
+    "title": "Magic Fire Swirl Animation",
+    "tags": [
+      "fire"
+    ],
+    "source": "openverse/wikimedia",
+    "source_url": "https://commons.wikimedia.org/w/index.php?curid=103163530",
+    "license": "CC-CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/deed.en/",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": true,
+    "width": 495,
+    "height": 464
+  }
+]

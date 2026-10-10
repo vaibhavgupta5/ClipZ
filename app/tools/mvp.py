@@ -181,6 +181,11 @@ class ExportIn(BaseModel):
     model_config = Frozen
 
     profile: Literal["preview", "final"] = "final"
+    monetized: bool = Field(
+        default=True,
+        description="False only when the user says the reel will not be monetised; "
+        "personal-use assets (popular meme templates) are blocked from monetised exports",
+    )
 
 
 class ExportOut(BaseModel):

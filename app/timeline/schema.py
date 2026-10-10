@@ -99,6 +99,7 @@ class Overlay(BaseModel):
     license: str = Field(default="", description="Asset license (presence enforced by validator)")
     attribution_required: bool = Field(default=False)
     attribution_text: str = Field(default="")
+    commercial_use: bool = Field(default=True, description="False = personal use only (ADR-014)")
 
 
 class MusicBed(BaseModel):
@@ -111,6 +112,7 @@ class MusicBed(BaseModel):
     attribution_required: bool = Field(default=False)
     attribution_text: str = Field(default="")
     level_db: float = Field(default=-18.0, le=0.0, description="Bed level under voice")
+    commercial_use: bool = Field(default=True, description="False = personal use only (ADR-014)")
 
 
 class SfxHit(BaseModel):

@@ -171,6 +171,8 @@ def _dispatch(tool: ToolDef, p: BaseModel, state: ToolState) -> ToolOutcome:
             _check_range(tl, p.start_word, p.end_word)
             return ToolOutcome(tool, Effect.RENDER, fields={"profile": "preview"})
         case mvp.ExportIn():
+            if p.monetized:
+                _check_commercial(tl)
             return ToolOutcome(tool, Effect.RENDER, fields={"profile": p.profile})
         case mvp.AskUserIn():
             return ToolOutcome(
@@ -183,6 +185,25 @@ def _caption_config(tool: ToolDef, p: mvp.AddCaptionsIn, current: CaptionConfig)
     """add_captions sets every field; set_caption_style patches only the fields given."""
     given = p.model_dump(include=None if tool.name == "add_captions" else p.model_fields_set)
     return current.model_copy(update=given)
+
+
+def personal_use_assets(tl: Timeline) -> list[str]:
+    """IDs of inserts / music that are personal-use only (license unknown)."""
+    ids = [o.id for o in tl.overlays if not o.commercial_use]
+    if tl.music is not None and not tl.music.commercial_use:
+        ids.append(f"music:{tl.music.asset}")
+    return ids
+
+
+def _check_commercial(tl: Timeline) -> None:
+    blocked = personal_use_assets(tl)
+    if blocked:
+        raise OpError(
+            "personal_use_assets",
+            f"monetised export blocked: {', '.join(blocked)} are personal-use only",
+            "remove or swap those inserts, or export with monetized=false if the user "
+            "confirms the reel will not be monetised",
+        )
 
 
 def _check_range(tl: Timeline, start: str | None, end: str | None) -> None:

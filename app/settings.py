@@ -11,52 +11,37 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://reelforge:reelforge@localhost:5432/reelforge",
-        description="Async SQLAlchemy DSN for Postgres+pgvector",
+    MONGODB_URL: str = Field(
+        default="mongodb://localhost:27018", description="MongoDB connection string"
     )
+    MONGODB_DB: str = Field(default="reelforge", description="MongoDB database name")
     REDIS_URL: str = Field(
         default="redis://localhost:6379/0", description="Redis DSN for Arq queues"
     )
-    S3_ENDPOINT: str = Field(
-        default="http://localhost:9000", description="S3-compatible endpoint (MinIO local)"
+    UPLOAD_DIR: str = Field(
+        default="./upload", description="Raw uploads (deleted once ingest succeeds)"
     )
-    S3_PUBLIC_ENDPOINT: str = Field(
-        default="http://localhost:9000",
-        description="Public endpoint embedded in presigned URLs (host-mapped port in compose)",
+    WORK_DIR: str = Field(
+        default="./work", description="Masters, proxies, caches (project dir deleted after export)"
     )
-    S3_BUCKET: str = Field(default="reelforge", description="Object-storage bucket")
-    S3_ACCESS_KEY: str = Field(default="minioadmin", description="Object-storage access key")
-    S3_SECRET_KEY: str = Field(
-        default="reelforge-dev-secret-key",  # dev-only; must be >= 16 chars for Garage
-        description="Object-storage secret key",
+    EDITED_DIR: str = Field(default="./editedVideo", description="Previews and final exports")
+    MAX_UPLOAD_MB: int = Field(default=1024, ge=1, description="Upload size cap in MB")
+    GEMINI_API_KEY: str = Field(default="", description="Gemini key (empty = fake LLM)")
+    GEMINI_MODEL: str = Field(
+        default="gemini-3.8-flash", description="Gemini model for the Director and analysis"
     )
-    S3_REGION: str = Field(default="us-east-1", description="Object-storage region")
-    ANTHROPIC_API_KEY: str = Field(
-        default="", description="Claude provider key (empty = unavailable)"
+    GEMINI_THINKING_LEVEL: str = Field(
+        default="low", description="Gemini thinking level: minimal|low|medium|high"
     )
-    GEMINI_API_KEY: str = Field(default="", description="Gemini provider key (empty = unavailable)")
-    CLAUDE_DIRECTOR_MODEL: str = Field(
-        default="claude-opus-5", description="Claude model for the Director tool loop"
+    WHISPER_MODEL: str = Field(
+        default="small", description="faster-whisper model: tiny|base|small|medium|large-v3"
     )
-    LLM_EFFORT: str = Field(
-        default="medium", description="Claude effort for the Director (low|medium|high|xhigh|max)"
+    CHAT_PREVIEW_WAIT_S: int = Field(
+        default=180, ge=0, description="How long a chat stream waits for its preview render"
     )
-    MUSIC_PROVIDER: str = Field(
-        default="fake", description="MusicProvider adapter name (chosen in Phase 6)"
-    )
-    MUSIC_API_KEY: str = Field(default="", description="Music provider API key")
-    GIF_PROVIDER_KEY: str = Field(
-        default="", description="GIF/sticker provider key (chosen in Phase 7)"
-    )
-    STOCK_IMAGE_KEY: str = Field(
-        default="", description="Stock photo/video provider key (chosen in Phase 7)"
-    )
-    MEME_PROVIDER_KEY: str = Field(
-        default="", description="Meme-template provider key (chosen in Phase 7)"
-    )
-    IMAGEGEN_KEY: str = Field(
-        default="", description="AI image-gen provider key (fallback, Phase 7)"
+    ASSETS_DIR: str = Field(
+        default="./assets",
+        description="Local licensed asset libraries (music, gifs, images, memes)",
     )
     MAX_VIDEO_SECONDS: int = Field(
         default=90, description="Hard cap on reel duration (locked decision 1)"

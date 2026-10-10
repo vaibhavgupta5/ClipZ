@@ -4,11 +4,11 @@ import json
 import uuid
 
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import desc, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import db as db_ops
 from app.analysis.llm_stages import transcript_lines
-from app.api.deps import SessionDep, UserDep, owned_project
+from app.api.deps import DbDep, UserDep, owned_project
+from app.db import Database
 from app.models import Analysis
 from app.settings import get_settings
 from app.storage import get_storage
@@ -18,14 +18,10 @@ router = APIRouter()
 
 
 async def _latest_bundle(
-    session: AsyncSession,
+    db: Database,
     project_id: uuid.UUID,
 ) -> tuple[Analysis, dict[str, object]]:
-    row = await session.scalar(
-        select(Analysis)
-        .where(Analysis.project_id == project_id)
-        .order_by(desc(Analysis.created_at))
-    )
+    row = await db_ops.find_one(db, Analysis, {"project_id": project_id}, sort=[("created_at", -1)])
     if row is None:
         raise HTTPException(status_code=404, detail="no analysis yet for this project")
     store = get_storage(get_settings())
@@ -37,22 +33,18 @@ async def _latest_bundle(
 
 
 @router.get("/projects/{project_id}/analysis")
-async def get_analysis(
-    project_id: uuid.UUID, session: SessionDep, user_id: UserDep
-) -> dict[str, object]:
+async def get_analysis(project_id: uuid.UUID, db: DbDep, user_id: UserDep) -> dict[str, object]:
     """Latest cached AnalysisBundle for the project."""
-    await owned_project(session, user_id, project_id)
-    row, bundle = await _latest_bundle(session, project_id)
+    await owned_project(db, user_id, project_id)
+    row, bundle = await _latest_bundle(db, project_id)
     return {"bundle": bundle, "analyzer": row.analyzer, "version": row.version}
 
 
 @router.get("/projects/{project_id}/transcript")
-async def get_transcript(
-    project_id: uuid.UUID, session: SessionDep, user_id: UserDep
-) -> dict[str, object]:
+async def get_transcript(project_id: uuid.UUID, db: DbDep, user_id: UserDep) -> dict[str, object]:
     """LLM-format transcript ([wID] text) + beats section."""
-    await owned_project(session, user_id, project_id)
-    _, bundle = await _latest_bundle(session, project_id)
+    await owned_project(db, user_id, project_id)
+    _, bundle = await _latest_bundle(db, project_id)
     transcript = Transcript.model_validate(bundle["transcript"])
     lines = transcript_lines(transcript)
     raw_beats = bundle.get("beats", [])
