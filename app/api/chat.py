@@ -29,7 +29,7 @@ from app.api.timelines import _require_timeline
 from app.logging_setup import get_logger
 from app.models import Job, Message, Render
 from app.providers.gemini import ProviderUnavailable
-from app.providers.registry import director_llm
+from app.providers.registry import audio_generator, director_llm
 from app.providers.tools import AgentMessage, ToolCallingLLM
 from app.settings import get_settings
 from app.storage import get_storage
@@ -141,7 +141,15 @@ async def post_message(
             queue.put_nowait(event)
 
         try:
-            result = await run_director(llm, ws, system, body.text, history=history, emit=emit)
+            result = await run_director(
+                llm,
+                ws,
+                system,
+                body.text,
+                history=history,
+                emit=emit,
+                generator=audio_generator(),
+            )
             await db_ops.insert(
                 db,
                 Message(

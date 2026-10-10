@@ -36,11 +36,18 @@ def to_gemini_schema() -> dict[str, dict[str, object]]:
     }
 
 
-def tool_specs() -> list[ToolSpec]:
-    """Provider-neutral tool list in registry order (stable order keeps the prompt cache warm)."""
+ELEVENLABS_TOOLS = frozenset({"generate_sfx", "add_voiceover", "remove_voiceover", "dub_video"})
+
+
+def tool_specs(exclude: frozenset[str] = frozenset()) -> list[ToolSpec]:
+    """Provider-neutral tool list in registry order (stable order keeps the prompt cache warm).
+
+    ``exclude`` hides tools whose backing service is not configured (e.g. ElevenLabs).
+    """
     return [
         ToolSpec(
             name=t.name, description=t.description, input_schema=t.input_model.model_json_schema()
         )
         for t in TOOLS
+        if t.name not in exclude
     ]

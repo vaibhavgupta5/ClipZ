@@ -5,6 +5,7 @@ any version is written, and at most one preview render is queued per chat turn.
 Persistence and rendering go through ``Workspace`` so the loop is testable offline.
 """
 
+import dataclasses
 import json
 import time
 from collections.abc import Callable
@@ -14,6 +15,7 @@ from typing import Literal, Protocol
 from app.agent import coverage
 from app.agent.context import timeline_state
 from app.agent.router import route
+from app.providers.local import LibraryItem
 from app.providers.tools import (
     AgentMessage,
     ToolCall,
@@ -23,8 +25,16 @@ from app.providers.tools import (
     Usage,
 )
 from app.timeline.summary import summarize
-from app.tools.executor import Effect, ToolFailure, ToolOutcome, ToolState, execute
-from app.tools.registry import tool_specs
+from app.tools import mvp
+from app.tools.executor import (
+    GENERATING_TOOLS,
+    Effect,
+    ToolFailure,
+    ToolOutcome,
+    ToolState,
+    execute,
+)
+from app.tools.registry import ELEVENLABS_TOOLS, get_tool, tool_specs
 
 MAX_ITERS = 8
 MAX_FAILURES_PER_TOOL = 2
@@ -36,6 +46,7 @@ EventType = Literal[
     "timeline_version_created",
     "preview_queued",
     "render_queued",
+    "dub_queued",
     "ask",
     "done",
     "render_progress",
@@ -80,6 +91,22 @@ class Workspace(Protocol):
         """Enqueue a render of the current version; return (render_id, job_id)."""
         ...
 
+    async def dub(self, language: str) -> str:
+        """Enqueue dubbing of the current version into ``language``; return the job id."""
+        ...
+
+
+class AudioGenerator(Protocol):
+    """Generated audio (ElevenLabs behind ``GeneratedAudioStore``; fakes in tests)."""
+
+    async def sound(self, prompt: str, duration_s: float) -> LibraryItem:
+        """A sound effect for the description (cached by content hash)."""
+        ...
+
+    async def voice(self, text: str) -> LibraryItem:
+        """A voiceover of the text (cached by content hash)."""
+        ...
+
 
 @dataclass
 class DirectorResult:
@@ -115,8 +142,15 @@ def _add(a: Usage, b: Usage) -> Usage:
 class _Turn:
     """Mutable bookkeeping for one chat turn."""
 
-    def __init__(self, ws: Workspace, emit: Emit, result: DirectorResult) -> None:
+    def __init__(
+        self,
+        ws: Workspace,
+        emit: Emit,
+        result: DirectorResult,
+        generator: AudioGenerator | None = None,
+    ) -> None:
         self.ws = ws
+        self.generator = generator
         self.emit = emit
         self.result = result
         self.failures: dict[str, int] = {}
@@ -134,7 +168,10 @@ class _Turn:
                 call, f"{call.name} failed {MAX_FAILURES_PER_TOOL} times; stop and tell the user"
             )
         started = time.monotonic()
-        outcome = execute(call.name, call.args, await self.ws.state())
+        state = await self.ws.state()
+        if call.name in GENERATING_TOOLS:
+            state = await self._prepare(call, state)
+        outcome = execute(call.name, call.args, state)
         if isinstance(outcome, ToolFailure):
             self.failures[call.name] = self.failures.get(call.name, 0) + 1
             code = outcome.errors[0].code if outcome.errors else "error"
@@ -147,6 +184,29 @@ class _Turn:
         result = {"id": call.id, "name": call.name, "ok": True, "result": payload}
         self.emit(Event("tool_result", {**result, "ms": _ms(started)}))
         return ToolResult(call_id=call.id, name=call.name, content=json.dumps(payload))
+
+    async def _prepare(self, call: ToolCall, state: ToolState) -> ToolState:
+        """Generate the clip a generating tool needs. Any failure leaves ``prepared`` empty
+        and the executor answers with ``generation_unavailable`` plus a fallback hint."""
+        if self.generator is None:
+            return state
+        try:
+            params = get_tool(call.name).input_model.model_validate(call.args)
+        except ValueError:
+            return state  # the executor reports the validation errors
+        try:
+            if isinstance(params, mvp.GenerateSfxIn):
+                item = await self.generator.sound(params.prompt, params.duration_s)
+            elif isinstance(params, mvp.AddVoiceoverIn):
+                item = await self.generator.voice(params.text)
+            else:
+                return state
+        except Exception as exc:  # provider failures must not break the turn
+            self.emit(Event("error", {"tool": call.name, "message": str(exc)[:200]}))
+            return state
+        if state.catalog is not None:
+            state.catalog.reload("generated")
+        return dataclasses.replace(state, prepared=item)
 
     async def _apply(self, outcome: ToolOutcome) -> dict[str, object]:
         match outcome.effect:
@@ -183,6 +243,15 @@ class _Turn:
                     Event(kind, {"render_id": render_id, "job_id": job_id, "profile": profile})
                 )
                 return {"render_id": render_id, "job_id": job_id}
+            case Effect.DUB:
+                language = str(outcome.fields["language"])
+                job_id = await self.ws.dub(language)
+                self.emit(Event("dub_queued", {"job_id": job_id, "language": language}))
+                return {
+                    "job_id": job_id,
+                    "note": f"dubbing into {language} in the background; it becomes a new "
+                    "version when ready",
+                }
             case Effect.ASK:
                 self.result.question = str(outcome.fields["question"])
                 self.emit(Event("ask", dict(outcome.fields)))
@@ -232,11 +301,15 @@ async def run_director(
     history: list[AgentMessage] | None = None,
     emit: Emit | None = None,
     max_iters: int = MAX_ITERS,
+    generator: AudioGenerator | None = None,
 ) -> DirectorResult:
-    """Handle one user chat message. Always terminates within ``max_iters`` model turns."""
+    """Handle one user chat message. Always terminates within ``max_iters`` model turns.
+
+    Without a ``generator`` (no ElevenLabs key) the generated-audio tools are hidden.
+    """
     sink: Emit = emit or (lambda _e: None)
     result = DirectorResult(model=llm.model)
-    turn = _Turn(ws, sink, result)
+    turn = _Turn(ws, sink, result, generator)
 
     direct = route(message)
     if direct is not None:
@@ -249,7 +322,7 @@ async def run_director(
 
     tl = (await ws.state()).timeline
     msgs = [*(history or []), AgentMessage(role="user", text=f"{message}\n\n{timeline_state(tl)}")]
-    tools = tool_specs()
+    tools = tool_specs(exclude=frozenset() if generator else ELEVENLABS_TOOLS)
     reviewed = False
     for i in range(max_iters):
         result.iterations = i + 1

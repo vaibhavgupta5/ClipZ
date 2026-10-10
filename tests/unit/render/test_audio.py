@@ -100,3 +100,20 @@ def test_sfx_hits_are_delayed_and_mixed_before_loudnorm() -> None:
     )
     no_music = audio_filter([], sfx=[(0.5, -10.0, 1.0)])
     assert "[1:a]aresample" in no_music and "[v0][s0]amix=inputs=2" in no_music
+
+
+def test_voiceover_ducks_the_voice_under_narration() -> None:
+    from app.render.audio import audio_filter
+
+    f = audio_filter([], denoise=False, sfx=[(1.0, 0.0, 2.0)], ducks=[(0.9, 3.1, -14.0)])
+    assert "volume=enable='between(t,0.900,3.100)':volume=-14.0dB[v0]" in f
+    assert "adelay=1000|1000" in f
+
+
+def test_duck_level_is_bounded() -> None:
+    import pytest
+
+    from app.render.audio import audio_filter
+
+    with pytest.raises(ValueError):
+        audio_filter([], ducks=[(0.0, 1.0, 10.0)])

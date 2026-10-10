@@ -44,6 +44,7 @@ def validate_timeline(
     anchors: list[tuple[str, str]] = [(z.id, z.anchor_word) for z in tl.zooms]
     anchors += [(o.id, o.anchor_word) for o in tl.overlays]
     anchors += [(s.id, s.anchor_word) for s in tl.sfx]
+    anchors += [(v.id, v.anchor_word) for v in tl.voiceovers]
     for owner, wid in anchors:
         if wid not in known_words:
             errors.append(
@@ -59,6 +60,9 @@ def validate_timeline(
     if tl.music is not None:
         licensed.append(("music", tl.music.license))
     licensed += [(s.id, s.license) for s in tl.sfx]
+    licensed += [(v.id, v.license) for v in tl.voiceovers]
+    if tl.dub is not None:
+        licensed.append(("dub", tl.dub.license))
     for owner, lic in licensed:
         if not lic.strip():
             errors.append(

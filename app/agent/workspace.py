@@ -75,6 +75,15 @@ class DbWorkspace:
             return await undo_version(self.db, self.row.id)
         return await redo_version(self.db, self.row.id)
 
+    async def dub(self, language: str) -> str:
+        """Enqueue a dubbing job; it commits a new version when ElevenLabs finishes."""
+        from app.workers.dub import request_dub
+
+        job = await request_dub(
+            self.db, get_settings().REDIS_URL, self.project_id, self.row.id, language
+        )
+        return str(job.id)
+
     async def render(self, profile: str) -> tuple[str, str]:
         """Enqueue a render of the current version."""
         version = await self.current_version()

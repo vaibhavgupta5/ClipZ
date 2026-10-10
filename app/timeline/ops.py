@@ -12,11 +12,13 @@ from app.timeline.schema import (
     AudioEffect,
     CaptionConfig,
     Diff,
+    DubTrack,
     MusicBed,
     Overlay,
     SfxHit,
     Timeline,
     VideoClip,
+    Voiceover,
     Zoom,
 )
 from app.timeline.transcript import Word
@@ -341,3 +343,32 @@ def remove_sfx(tl: Timeline, sfx_id: str) -> tuple[Timeline, Diff]:
         )
     new_tl = tl.model_copy(update={"sfx": [s for s in tl.sfx if s.id != sfx_id]}, deep=True)
     return new_tl, Diff(op="remove_sfx", details={"id": sfx_id})
+
+
+def add_voiceover(tl: Timeline, vo: Voiceover) -> tuple[Timeline, Diff]:
+    """Add a narration clip anchored to an existing word."""
+    _require_word(tl, vo.anchor_word)
+    if any(v.id == vo.id for v in tl.voiceovers):
+        raise OpError("duplicate_id", f"voiceover {vo.id} already exists", "use a fresh id")
+    new_tl = tl.model_copy(update={"voiceovers": [*tl.voiceovers, vo]}, deep=True)
+    return new_tl, Diff(op="add_voiceover", details={"id": vo.id, "asset": vo.asset})
+
+
+def remove_voiceover(tl: Timeline, vo_id: str) -> tuple[Timeline, Diff]:
+    """Remove a narration clip by ID."""
+    if not any(v.id == vo_id for v in tl.voiceovers):
+        raise OpError(
+            "unknown_voiceover",
+            f"voiceover {vo_id} does not exist",
+            f"existing voiceovers: {[v.id for v in tl.voiceovers]}",
+        )
+    kept = [v for v in tl.voiceovers if v.id != vo_id]
+    return tl.model_copy(update={"voiceovers": kept}, deep=True), Diff(
+        op="remove_voiceover", details={"id": vo_id}
+    )
+
+
+def set_dub(tl: Timeline, dub: DubTrack | None) -> tuple[Timeline, Diff]:
+    """Set (or clear, with None) the dubbed voice track."""
+    new_tl = tl.model_copy(update={"dub": dub}, deep=True)
+    return new_tl, Diff(op="set_dub", details={"language": dub.language if dub else "original"})

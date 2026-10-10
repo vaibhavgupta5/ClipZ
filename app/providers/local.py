@@ -288,7 +288,7 @@ def _draw_meme(src: Path, dest: Path, top: str, bottom: str) -> None:
     img.save(dest, "PNG")
 
 
-LIBRARIES = ("images", "gifs", "memes", "music", "sfx")
+LIBRARIES = ("images", "gifs", "memes", "music", "sfx", "generated")
 
 
 def resolve_asset_file(assets_root: str | Path, meme_dir: str | Path, asset_id: str) -> Path | None:
@@ -311,12 +311,19 @@ def resolve_asset_file(assets_root: str | Path, meme_dir: str | Path, asset_id: 
 class AssetCatalog:
     """Synchronous facade over the local libraries for the tool executor."""
 
-    KINDS = {"image": "images", "gif": "gifs", "meme": "memes", "music": "music", "sfx": "sfx"}
+    KINDS = {
+        "image": "images", "gif": "gifs", "meme": "memes", "music": "music", "sfx": "sfx",
+        "generated": "generated",  # ElevenLabs output (app/providers/generated.py)
+    }  # fmt: skip
 
     def __init__(self, assets_root: str | Path, meme_dir: str | Path) -> None:
         self.root = Path(assets_root)
         self.meme_dir = Path(meme_dir)
         self._libs = {k: Library(self.root, v) for k, v in self.KINDS.items()}
+
+    def reload(self, kind: str) -> None:
+        """Re-read one library's manifest (after a generated clip was added)."""
+        self._libs[kind] = Library(self.root, self.KINDS[kind])
 
     def search(self, kind: str, query: str, limit: int) -> list[LibraryItem]:
         """Best matches in one library (kind: image | gif | meme)."""

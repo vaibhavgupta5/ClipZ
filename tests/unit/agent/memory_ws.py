@@ -1,6 +1,7 @@
 """In-memory Workspace for Director tests and evals (no DB, no queue)."""
 
 from app.analysis.models import FillerHit, SpeechRange
+from app.providers.local import AssetCatalog
 from app.timeline.schema import Timeline
 from app.timeline.versions import VersionLog
 from app.tools.executor import Effect, ToolOutcome, ToolState
@@ -19,6 +20,8 @@ class MemoryWorkspace:
         self.speech = speech or []
         self.fillers = fillers or []
         self.render_calls: list[str] = []
+        self.dub_calls: list[str] = []
+        self.catalog: AssetCatalog | None = None
 
     def timeline(self) -> Timeline:
         entry = self.log.get(self.log.current)
@@ -26,7 +29,7 @@ class MemoryWorkspace:
         return Timeline.model_validate(entry.edl).model_copy(update={"version": entry.version})
 
     async def state(self) -> ToolState:
-        return ToolState(self.timeline(), self.speech, self.fillers)
+        return ToolState(self.timeline(), self.speech, self.fillers, catalog=self.catalog)
 
     async def current_version(self) -> int:
         return self.log.current
@@ -44,3 +47,7 @@ class MemoryWorkspace:
         self.render_calls.append(profile)
         n = len(self.render_calls)
         return f"r{n}", f"j{n}"
+
+    async def dub(self, language: str) -> str:
+        self.dub_calls.append(language)
+        return f"dub{len(self.dub_calls)}"

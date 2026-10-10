@@ -10,6 +10,7 @@ from app.logging_setup import get_logger, setup_logging
 from app.settings import get_settings
 from app.storage import get_storage
 from app.workers.analyze import analyze_asset
+from app.workers.dub import dub_task
 from app.workers.ingest import ingest_asset
 from app.workers.render import render_task
 
@@ -46,6 +47,7 @@ class WorkerSettings:
         func(ingest_asset, timeout=600),
         func(analyze_asset, timeout=1200),
         func(render_task, timeout=1800),
+        func(dub_task, timeout=1200),
     ]
     on_startup = startup
     on_shutdown = shutdown

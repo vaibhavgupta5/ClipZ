@@ -24,6 +24,7 @@ from app.timeline.schema import (
     Overlay,
     SfxHit,
     Timeline,
+    Voiceover,
     Zoom,
 )
 from app.timeline.summary import summarize
@@ -42,6 +43,7 @@ class Effect(StrEnum):
     REDO = "redo"
     RENDER = "render"  # enqueue a render (preview/export)
     ASK = "ask"  # stop the loop and wait for the user
+    DUB = "dub"  # enqueue a background dubbing job
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,9 @@ class ToolState:
     speech: list[SpeechRange] = field(default_factory=list)
     fillers: list[FillerHit] = field(default_factory=list)
     catalog: AssetCatalog | None = None
+    # Clip the agent layer generated for THIS call (generate_sfx, add_voiceover); the
+    # executor stays I/O-free and only places it.
+    prepared: LibraryItem | None = None
 
 
 @dataclass(frozen=True)
@@ -239,6 +244,14 @@ def _dispatch(tool: ToolDef, p: BaseModel, state: ToolState) -> ToolOutcome:
             return _add_sfx(tool, p, state)
         case mvp.AutoSfxIn():
             return _auto_sfx(tool, p, state)
+        case mvp.GenerateSfxIn():
+            return _generate_sfx(tool, p, state)
+        case mvp.AddVoiceoverIn():
+            return _add_voiceover(tool, p, state)
+        case mvp.RemoveVoiceoverIn():
+            return _edit(tool, ops.remove_voiceover(tl, p.voiceover_id))
+        case mvp.DubVideoIn():
+            return _dub_video(tool, p, state)
         case mvp.RemoveInsertIn():
             return _edit(tool, ops.remove_overlay(tl, p.insert_id))
         case mvp.AskUserIn():
@@ -246,6 +259,92 @@ def _dispatch(tool: ToolDef, p: BaseModel, state: ToolState) -> ToolOutcome:
                 tool, Effect.ASK, fields={"question": p.question, "options": p.options}
             )
     raise OpError("unsupported_tool", f"tool {tool.name} has no handler", "report this bug")
+
+
+GENERATING_TOOLS = frozenset({"generate_sfx", "add_voiceover"})
+
+
+def _prepared(state: ToolState, what: str, hint: str) -> LibraryItem:
+    if state.prepared is None:
+        raise OpError("generation_unavailable", f"{what} could not be generated", hint)
+    return state.prepared
+
+
+def _generate_sfx(tool: ToolDef, p: mvp.GenerateSfxIn, state: ToolState) -> ToolOutcome:
+    types = ", ".join(state.catalog.sfx_types()) if state.catalog else "none"
+    item = _prepared(state, "the sound effect", f"use add_sfx with a library type: {types}")
+    tl = state.timeline
+    n = len(tl.sfx) + 1
+    while any(s.id == f"gen{n}" for s in tl.sfx):
+        n += 1
+    hit = SfxHit(
+        id=f"gen{n}",
+        asset=item.id,
+        anchor_word=p.at_word,
+        offset_ms=p.offset_ms,
+        gain_db=p.gain_db,
+        max_ms=max(50, round(p.duration_s * 1000)),
+        license=item.license,
+        commercial_use=item.commercial_use,
+        attribution_text=item.attribution_text if item.attribution_required else "",
+    )
+    return _edit(tool, ops.add_sfx(tl, hit))
+
+
+def _add_voiceover(tool: ToolDef, p: mvp.AddVoiceoverIn, state: ToolState) -> ToolOutcome:
+    tl = state.timeline
+    start = snap.output_time_of(tl, p.at_word, "end") + p.offset_ms / 1000.0
+    item = _prepared(state, "the voiceover", "tell the user voiceover is unavailable right now")
+    end = start + item.duration_s
+    if end > tl.duration_s + EPS:
+        raise OpError(
+            "voiceover_too_long",
+            f"narration runs {item.duration_s:.1f}s from {start:.1f}s, past the end "
+            f"({tl.duration_s:.1f}s)",
+            "anchor it to an earlier word or shorten the text",
+        )
+    for v in tl.voiceovers:
+        v_start = snap.output_time_of(tl, v.anchor_word, "end") + v.offset_ms / 1000.0
+        if start < v_start + v.duration_ms / 1000.0 and v_start < end:
+            raise OpError(
+                "voiceover_overlap",
+                f"overlaps {v.id}",
+                f"start after {v.id} ends, or remove_voiceover {v.id} first",
+            )
+    n = len(tl.voiceovers) + 1
+    while any(v.id == f"vo{n}" for v in tl.voiceovers):
+        n += 1
+    vo = Voiceover(
+        id=f"vo{n}",
+        asset=item.id,
+        text=p.text,
+        anchor_word=p.at_word,
+        offset_ms=p.offset_ms,
+        duration_ms=max(100, round(item.duration_s * 1000)),
+        duck_db=p.duck_db,
+        license=item.license,
+        attribution_required=item.attribution_required,
+        attribution_text=item.attribution_text,
+        commercial_use=item.commercial_use,
+    )
+    return _edit(tool, ops.add_voiceover(tl, vo))
+
+
+def _dub_video(tool: ToolDef, p: mvp.DubVideoIn, state: ToolState) -> ToolOutcome:
+    tl = state.timeline
+    if p.target_language == "original":
+        if tl.dub is None:
+            raise OpError("no_dub", "the video is not dubbed", "nothing to remove")
+        return _edit(tool, ops.set_dub(tl, None))
+    if p.target_language == tl.transcript.language:
+        raise OpError(
+            "same_language",
+            f"the speech is already in {p.target_language}",
+            "pick the other language (en or hi)",
+        )
+    if tl.dub is not None and tl.dub.language == p.target_language:
+        raise OpError("already_dubbed", f"already dubbed into {p.target_language}", "")
+    return ToolOutcome(tool, Effect.DUB, fields={"language": p.target_language})
 
 
 def _caption_config(tool: ToolDef, p: mvp.AddCaptionsIn, current: CaptionConfig) -> CaptionConfig:
@@ -654,10 +753,14 @@ def _add_music(tool: ToolDef, p: mvp.AddMusicIn, state: ToolState) -> ToolOutcom
 
 
 def personal_use_assets(tl: Timeline) -> list[str]:
-    """IDs of inserts / music that are personal-use only (license unknown)."""
+    """IDs of inserts / music / generated audio that are personal-use only."""
     ids = [o.id for o in tl.overlays if not o.commercial_use]
     if tl.music is not None and not tl.music.commercial_use:
         ids.append(f"music:{tl.music.asset}")
+    ids += [h.id for h in tl.sfx if not h.commercial_use]
+    ids += [v.id for v in tl.voiceovers if not v.commercial_use]
+    if tl.dub is not None and not tl.dub.commercial_use:
+        ids.append("dub")
     return ids
 
 

@@ -28,3 +28,15 @@ async def enqueue_render(redis_url: str, payload: dict[str, Any]) -> str:
         return str(job.job_id)
     finally:
         await pool.aclose()
+
+
+async def enqueue_job(redis_url: str, function: str, payload: dict[str, Any]) -> str:
+    """Enqueue any registered arq function; returns the arq job id."""
+    pool = await create_pool(RedisSettings.from_dsn(redis_url))
+    try:
+        job = await pool.enqueue_job(function, **payload)
+        if job is None:
+            raise RuntimeError(f"arq refused the {function} job")
+        return str(job.job_id)
+    finally:
+        await pool.aclose()

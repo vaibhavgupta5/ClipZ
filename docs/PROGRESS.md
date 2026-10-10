@@ -43,4 +43,17 @@
 - Next: run `make eval-live` + demo with GEMINI_API_KEY, then Phase 6 (music bed + ducking using the
   local music library, attribution output, SFX).
 
-## Phases 6-10: not started
+## Phase 6: Pro editing, sound design, ElevenLabs (IN PROGRESS; plan docs/plans/PHASE-6-pro-editing.md)
+- Done: libraries widened (140 images in 13 categories, 92 memes, 36 SFX in 12 types); punch-in zooms
+  (smoothstep envelope), cut transitions (zoom_in / flash / whip); SFX mixing + `auto_sfx` synced to
+  cuts, inserts and zooms; request-coverage follow-up and re-export after late edits in the Director.
+- ElevenLabs (ADR-017): httpx adapter (sound effects, speech with timestamps, dubbing); generated audio
+  cached by hash in `assets/generated/` with licence by plan; tools `generate_sfx`, `add_voiceover`,
+  `remove_voiceover`, `dub_video` (arq `dub_task`); renderer swaps in the dub and ducks the speaker
+  under voiceovers; credits for free-plan output. All tested offline (mock transport, real ffmpeg mix).
+- Stubbed / gaps: not yet run against the live API (needs ELEVENLABS_API_KEY); captions follow the
+  source transcript after a dub; voiceover text has no captions; no dub progress events in chat.
+- Next: Gemini video critic, Snowflake eval judge, DigitalOcean deploy, judges' pitch, DEV post,
+  Tiger Data justification PDF.
+
+## Phases 7-10: not started

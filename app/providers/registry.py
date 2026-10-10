@@ -11,6 +11,7 @@ from app.providers.base import (
     MusicProvider,
     SfxProvider,
 )
+from app.providers.elevenlabs import ElevenLabsClient
 from app.providers.fakes import (
     FakeGifProvider,
     FakeImageProvider,
@@ -20,6 +21,7 @@ from app.providers.fakes import (
     FakeSfxProvider,
 )
 from app.providers.gemini import GeminiLLM
+from app.providers.generated import GeneratedAudioStore
 from app.providers.local import (
     LocalGifProvider,
     LocalImageProvider,
@@ -80,4 +82,30 @@ def _gemini(settings: Settings) -> GeminiLLM:
         settings.GEMINI_MODEL,
         settings.GEMINI_THINKING_LEVEL,
         fallback_models=fallbacks,
+    )
+
+
+_generators: dict[str, GeneratedAudioStore] = {}
+
+
+def audio_generator(settings: Settings | None = None) -> GeneratedAudioStore | None:
+    """ElevenLabs-backed generated audio, or None when no key is configured.
+
+    One store (and HTTP connection pool) per key for the life of the process.
+    """
+    settings = settings or get_settings()
+    key = settings.ELEVENLABS_API_KEY
+    if not key:
+        return None
+    if key not in _generators:
+        _generators[key] = _new_generator(settings)
+    return _generators[key]
+
+
+def _new_generator(settings: Settings) -> GeneratedAudioStore:
+    return GeneratedAudioStore(
+        settings.ASSETS_DIR,
+        ElevenLabsClient(settings.ELEVENLABS_API_KEY),
+        settings.elevenlabs_plan,
+        settings.ELEVENLABS_VOICE_ID,
     )

@@ -134,6 +134,41 @@ class SfxHit(BaseModel):
     gain_db: float = Field(default=-8.0, le=0.0, description="Hit gain")
     max_ms: int = Field(default=1500, ge=50, le=10000, description="Hit is trimmed to this length")
     license: str = Field(default="", description="Clip license (presence enforced by validator)")
+    commercial_use: bool = Field(default=True, description="False = personal use only")
+    attribution_text: str = Field(default="", description="Credit line, when one is required")
+
+
+class Voiceover(BaseModel):
+    """Generated narration starting as a word ends; the original voice is ducked under it."""
+
+    model_config = Frozen
+
+    id: str = Field(min_length=1, description="Voiceover ID (vo1, vo2...)")
+    asset: str = Field(min_length=1, description="Generated audio asset ID")
+    text: str = Field(min_length=1, max_length=300, description="Spoken text (for captions/UI)")
+    anchor_word: str = Field(pattern=WORD_ID, description="Starts at the end of this word")
+    offset_ms: int = Field(default=0, ge=0, le=500, description="Delay after the word end")
+    duration_ms: int = Field(ge=100, le=30000, description="Clip length")
+    gain_db: float = Field(default=0.0, ge=-20.0, le=6.0, description="Narration level")
+    duck_db: float = Field(default=-14.0, ge=-40.0, le=0.0, description="Original voice under it")
+    license: str = Field(default="", description="Clip license (presence enforced by validator)")
+    attribution_required: bool = Field(default=False)
+    attribution_text: str = Field(default="")
+    commercial_use: bool = Field(default=True, description="False = personal use only")
+
+
+class DubTrack(BaseModel):
+    """Dubbed speech replacing the original voice. Same timing as the master's audio, so
+    the timeline's cuts apply to it unchanged."""
+
+    model_config = Frozen
+
+    language: Literal["en", "hi"] = Field(description="Dub language")
+    asset: str = Field(min_length=1, description="Generated audio asset ID")
+    license: str = Field(default="", description="Track license (presence enforced by validator)")
+    attribution_required: bool = Field(default=False)
+    attribution_text: str = Field(default="")
+    commercial_use: bool = Field(default=True, description="False = personal use only")
 
 
 class OutputSpec(BaseModel):
@@ -162,6 +197,8 @@ class Timeline(BaseModel):
     overlays: list[Overlay] = Field(default_factory=list)
     music: MusicBed | None = Field(default=None)
     sfx: list[SfxHit] = Field(default_factory=list)
+    voiceovers: list[Voiceover] = Field(default_factory=list)
+    dub: DubTrack | None = Field(default=None, description="Dubbed voice track, if any")
     output: OutputSpec = Field(default_factory=OutputSpec)
     style_id: str | None = Field(default=None)
     trend_pack: str | None = Field(default=None)

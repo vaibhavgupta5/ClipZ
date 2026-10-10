@@ -1,6 +1,7 @@
 """Application settings (pydantic-settings). Every field must be documented in .env.example."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -41,6 +42,16 @@ class Settings(BaseSettings):
     GEMINI_THINKING_LEVEL: str = Field(
         default="", description="Gemini thinking level; empty = model default (required for 2.5)"
     )
+    ELEVENLABS_API_KEY: str = Field(
+        default="", description="ElevenLabs key (empty = generated SFX, voiceover, dubbing off)"
+    )
+    ELEVENLABS_PLAN: str = Field(
+        default="free",
+        description="free | paid. Free-plan output is personal use + credited (ADR-017)",
+    )
+    ELEVENLABS_VOICE_ID: str = Field(
+        default="JBFqnCBsd6RMkjVDRZzb", description="Voiceover voice (premade 'George')"
+    )
     WHISPER_MODEL: str = Field(
         default="small", description="faster-whisper model: tiny|base|small|medium|large-v3"
     )
@@ -65,6 +76,11 @@ class Settings(BaseSettings):
         default="", description="OTLP endpoint (empty = no-op tracer)"
     )
     LOG_LEVEL: str = Field(default="INFO", description="Root log level")
+
+    @property
+    def elevenlabs_plan(self) -> Literal["free", "paid"]:
+        """Plan tier for licence metadata; anything but 'paid' is treated as free."""
+        return "paid" if self.ELEVENLABS_PLAN.strip().lower() == "paid" else "free"
 
 
 @lru_cache(maxsize=1)

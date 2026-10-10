@@ -58,6 +58,10 @@ def attributions(tl: TimelineModel) -> list[str]:
     lines = [o.attribution_text for o in tl.overlays if o.attribution_required]
     if tl.music is not None and tl.music.attribution_required:
         lines.append(tl.music.attribution_text)
+    lines += [s.attribution_text for s in tl.sfx if s.attribution_text]
+    lines += [v.attribution_text for v in tl.voiceovers if v.attribution_required]
+    if tl.dub is not None and tl.dub.attribution_required:
+        lines.append(tl.dub.attribution_text)
     return list(dict.fromkeys(line for line in lines if line))
 
 
@@ -133,6 +137,15 @@ async def _run_render(
         if sfx_file is None:
             raise RenderError("unknown_asset", f"sound effect {hit.asset} not in library")
         asset_files[hit.asset] = str(sfx_file)
+
+    generated = [v.asset for v in timeline.voiceovers]
+    if timeline.dub is not None:
+        generated.append(timeline.dub.asset)
+    for asset_id in generated:
+        gen_file = resolve_asset_file(settings.ASSETS_DIR, meme_dir, asset_id)
+        if gen_file is None:
+            raise RenderError("unknown_asset", f"generated audio {asset_id} not in library")
+        asset_files[asset_id] = str(gen_file)
 
     holder = {"db": 0.0}
     push = _progress_writer(db, jid, render)

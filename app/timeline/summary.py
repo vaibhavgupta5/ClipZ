@@ -17,7 +17,8 @@ def summarize(tl: Timeline) -> str:
         f"{tl.captions.base_color}/{tl.captions.highlight_color}",
         f"zooms {len(tl.zooms)} | "
         f"overlays {len(tl.overlays)} | music {'yes' if tl.music else 'no'} | "
-        f"sfx {len(tl.sfx)}",
+        f"sfx {len(tl.sfx)} | voiceovers {len(tl.voiceovers)} | "
+        f"dub {tl.dub.language if tl.dub else 'none'}",
         f"style {tl.style_id or 'none'} | reframe {tl.reframe} | "
         f"audio {','.join(e.type for e in tl.audio_fx) or 'loudnorm-default'}",
     ]
@@ -30,4 +31,9 @@ def summarize(tl: Timeline) -> str:
     if tl.music:
         suffix = " [attribution required]" if tl.music.attribution_required else ""
         lines.append(f"music: {tl.music.asset}{suffix}")
+    if tl.voiceovers:
+        lines.append(
+            "voiceovers: "
+            + ", ".join(f"{v.id}(@{v.anchor_word} {v.duration_ms}ms)" for v in tl.voiceovers)
+        )
     return "\n".join(lines)

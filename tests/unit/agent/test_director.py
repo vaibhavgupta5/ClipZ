@@ -190,3 +190,77 @@ async def test_edits_after_an_export_trigger_a_fresh_export() -> None:
         "final",
         "final",
     ]  # stale export replaced by one of the final version
+
+
+class _FakeGenerator:
+    """Records generation requests; returns a fixed library item."""
+
+    def __init__(self, fail: bool = False) -> None:
+        self.calls: list[str] = []
+        self.fail = fail
+
+    async def sound(self, prompt: str, duration_s: float):  # type: ignore[no-untyped-def]
+        return self._item(f"sound:{prompt}", duration_s)
+
+    async def voice(self, text: str):  # type: ignore[no-untyped-def]
+        return self._item(f"voice:{text}", 1.0)
+
+    def _item(self, what: str, duration_s: float):  # type: ignore[no-untyped-def]
+        from app.providers.local import LibraryItem
+
+        self.calls.append(what)
+        if self.fail:
+            raise RuntimeError("quota")
+        return LibraryItem(
+            id="generated:0123456789abcdef",
+            file="x.mp3",
+            title=what,
+            tags=[],
+            source="elevenlabs",
+            license="ElevenLabs-paid-plan",
+            attribution_required=False,
+            commercial_use=True,
+            duration_s=duration_s,
+        )
+
+
+async def test_generated_audio_tools_are_hidden_without_elevenlabs() -> None:
+    seen: list[set[str]] = []
+
+    def check(req: ToolTurnRequest) -> ToolTurnReply:
+        seen.append({t.name for t in req.tools})
+        return _done()
+
+    await _run([check])
+    assert "generate_sfx" not in seen[0] and "dub_video" not in seen[0]
+    await _run([check], generator=_FakeGenerator())
+    assert {"generate_sfx", "add_voiceover", "dub_video"} <= seen[1]
+
+
+async def test_voiceover_is_generated_then_placed() -> None:
+    gen = _FakeGenerator()
+    res, ws, _, _ = await _run(
+        [_call("add_voiceover", text="Watch this", at_word="w1"), _done()], generator=gen
+    )
+    assert gen.calls == ["voice:Watch this"]
+    assert ws.timeline().voiceovers[0].asset == "generated:0123456789abcdef"
+    assert ws.render_calls == ["preview"]
+
+
+async def test_generation_failure_is_reported_not_raised() -> None:
+    res, ws, events, _ = await _run(
+        [_call("generate_sfx", prompt="crowd gasp", at_word="w2"), _done()],
+        generator=_FakeGenerator(fail=True),
+    )
+    assert ws.timeline().sfx == []
+    assert "generate_sfx (generation_unavailable)" in res.reply
+    assert any(e.type == "error" for e in events)
+
+
+async def test_dub_video_enqueues_a_dub_job() -> None:
+    res, ws, events, _ = await _run(
+        [_call("dub_video", target_language="hi"), _done()], generator=_FakeGenerator()
+    )
+    assert ws.dub_calls == ["hi"]
+    assert any(e.type == "dub_queued" for e in events)
+    assert ws.render_calls == []  # nothing changed yet; the job commits a version later

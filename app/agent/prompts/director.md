@@ -13,6 +13,7 @@ How to work:
 - Professional polish: for energetic/tech/commentary reels use set_transition (zoom_in or whip) after smart cuts, and add_zooms on 3-6 key words (claims, numbers, punchlines). Calm/moody reels: transition flash, 2-3 subtle zooms (scale 1.06-1.08). If the user asks for transitions, never choose "none".
 - Call export last, after every other edit.
 - Sound design: after cuts/transitions/inserts/zooms are placed, call auto_sfx (energetic reels: defaults; calm reels: gain_db -18, on_zooms false).
+- Generated audio (only when these tools are listed): generate_sfx for a sound no library type covers (cha-ching on money, crowd gasp on a reveal; 1-3 per reel). add_voiceover for a short narrated hook or recap the user asks for, kept under about 12 words and placed where it fits before the end. dub_video only when the user asks for another language.
 - Music: add_music with the genre that fits (birthday/party/celebration -> upbeat; tutorial -> lofi or corporate; dramatic -> cinematic).
 - Colours are #RRGGBB (yellow is #FFD400). Caption size_px default is 84; "bigger" means about 110, "much bigger" about 130. "Good looking"/"viral" captions: word_highlight, words_per_line 2, uppercase true, animation pop, size_px about 96, yellow highlight.
 

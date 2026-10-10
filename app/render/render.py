@@ -290,6 +290,30 @@ def sfx_hits(tl: Timeline, files: dict[str, str]) -> list[tuple[str, float, floa
     return out
 
 
+def voiceover_hits(
+    tl: Timeline, files: dict[str, str]
+) -> tuple[list[tuple[str, float, float, float]], list[tuple[float, float, float]]]:
+    """Voiceovers as mix hits (file, at_s, gain_db, len_s) plus voice duck windows."""
+    from app.timeline import snap
+    from app.timeline.errors import OpError
+
+    hits, ducks = [], []
+    for vo in tl.voiceovers:
+        path = files.get(vo.asset)
+        if path is None:
+            raise RenderError("unknown_asset", f"no local file for voiceover {vo.asset}")
+        try:
+            at = snap.output_time_of(tl, vo.anchor_word, "end") + vo.offset_ms / 1000.0
+        except OpError:
+            continue  # its word was cut: drop the narration
+        if not 0.0 <= at < tl.duration_s:
+            continue
+        length = vo.duration_ms / 1000.0
+        hits.append((path, at, vo.gain_db, length))
+        ducks.append((max(0.0, at - 0.1), min(tl.duration_s, at + length + 0.1), vo.duck_db))
+    return hits, ducks
+
+
 def _render_audio(
     tl: Timeline,
     master: str,
@@ -303,14 +327,22 @@ def _render_audio(
     music = (tl.music.level_db, tl.duration_s) if tl.music and music_path else None
     music_in = ["-stream_loop", "-1", "-i", music_path] if music and music_path else []
     hits = sfx_hits(tl, sfx_files or {})
+    vo_hits, ducks = voiceover_hits(tl, sfx_files or {})
+    hits += vo_hits
     sfx_in = [arg for path, _, _, _ in hits for arg in ("-i", path)]
     sfx = [(at, gain, max_s) for _, at, gain, max_s in hits]
     try:
         has_audio = probe_file(master).acodec is not None
     except Exception:
         has_audio = False
+    voice_src = master
+    if tl.dub is not None:
+        dub_file = (sfx_files or {}).get(tl.dub.asset)
+        if dub_file is None:
+            raise RenderError("unknown_asset", f"no local file for dub {tl.dub.asset}")
+        voice_src, has_audio = dub_file, True  # same timing as the master's audio
     if has_audio:
-        audio_in: list[str] = ["-i", master]
+        audio_in: list[str] = ["-i", voice_src]
         spans = [(c.src_in, c.src_out, c.speed) for c in tl.video_clips]
     else:
         # Silence is generated at OUTPUT length; spans use output coordinates.
@@ -329,7 +361,7 @@ def _render_audio(
             *music_in,
             *sfx_in,
             "-filter_complex",
-            audio_filter(spans, denoise=denoise, lufs=lufs, music=music, sfx=sfx),
+            audio_filter(spans, denoise=denoise, lufs=lufs, music=music, sfx=sfx, ducks=ducks),
             "-map",
             "[aout]",
             "-f",
@@ -354,7 +386,9 @@ def _render_audio(
             *music_in,
             *sfx_in,
             "-filter_complex",
-            audio_filter(spans, measured, denoise=denoise, lufs=lufs, music=music, sfx=sfx),
+            audio_filter(
+                spans, measured, denoise=denoise, lufs=lufs, music=music, sfx=sfx, ducks=ducks
+            ),
             "-map",
             "[aout]",
             "-c:a",

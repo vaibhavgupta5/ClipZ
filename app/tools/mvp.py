@@ -408,6 +408,66 @@ class AutoSfxIn(BaseModel):
     )
 
 
+class GenerateSfxIn(BaseModel):
+    """A custom sound effect generated from a description (ElevenLabs), as a word ends."""
+
+    model_config = Frozen
+
+    prompt: str = Field(
+        min_length=3,
+        max_length=120,
+        description="What it sounds like, e.g. 'cash register cha-ching', 'crowd gasp'",
+    )
+    at_word: str = Field(pattern=r"^w\d+$")
+    offset_ms: int = Field(default=0, ge=-500, le=500)
+    duration_s: float = Field(default=1.0, ge=0.5, le=5.0, description="Sound length")
+    gain_db: float = Field(default=-10.0, ge=-30.0, le=0.0)
+
+
+class AddVoiceoverIn(BaseModel):
+    """Narration spoken by a generated voice (ElevenLabs), starting as a word ends."""
+
+    model_config = Frozen
+
+    text: str = Field(
+        min_length=2, max_length=300, description="Exact words to speak (en or hi), one idea"
+    )
+    at_word: str = Field(pattern=r"^w\d+$", description="Starts when this word ends")
+    offset_ms: int = Field(default=0, ge=0, le=500)
+    duck_db: float = Field(
+        default=-14.0, ge=-40.0, le=0.0, description="Original voice level under the narration"
+    )
+
+
+class RemoveVoiceoverIn(BaseModel):
+    """Remove a voiceover by id (vo1, vo2...)."""
+
+    model_config = Frozen
+
+    voiceover_id: str = Field(pattern=r"^vo\d+$")
+
+
+class DubVideoIn(BaseModel):
+    """Dub the speech into another language (ElevenLabs Dubbing), keeping the edit."""
+
+    model_config = Frozen
+
+    target_language: Literal["en", "hi", "original"] = Field(
+        description="'original' removes the dub and restores the speaker's own voice"
+    )
+
+
+class DubOut(BaseModel):
+    """Dub job queued (or dub removed)."""
+
+    model_config = Frozen
+
+    op: str = "dub_video"
+    job_id: str = ""
+    version: int = 0
+    note: str = ""
+
+
 class SfxOut(BaseModel):
     """Sound effects placed."""
 
@@ -624,6 +684,39 @@ TOOLS: list[ToolDef] = [
         input_model=AutoSfxIn,
         output_model=SfxOut,
         needs_preview=True,
+    ),
+    ToolDef(
+        name="generate_sfx",
+        description="Generate a custom sound effect from a description when no library type "
+        "fits (cha-ching, crowd gasp, laugh track, door slam). Prefer add_sfx/auto_sfx for "
+        "whooshes, pops and dings.",
+        input_model=GenerateSfxIn,
+        output_model=OpOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="add_voiceover",
+        description="Add narration in a natural generated voice (hook intro, recap, call to "
+        "action). The speaker's voice is ducked under it. Keep it short; it must fit before "
+        "the video ends.",
+        input_model=AddVoiceoverIn,
+        output_model=OpOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="remove_voiceover",
+        description="Remove a voiceover by id.",
+        input_model=RemoveVoiceoverIn,
+        output_model=OpOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="dub_video",
+        description="Dub the speaker into English or Hindi with their voice cloned, keeping "
+        "every cut and effect. Runs in the background (about a minute); the dubbed version "
+        "appears as a new timeline version. 'original' removes the dub.",
+        input_model=DubVideoIn,
+        output_model=DubOut,
     ),
     ToolDef(
         name="remove_insert",

@@ -25,3 +25,5 @@ assets/**
 !assets/
 !assets/*/
 !assets/*/manifest.json
+# ElevenLabs output is a per-install cache, not a tracked library
+assets/generated/

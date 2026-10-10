@@ -196,13 +196,24 @@ def test_every_registered_tool_has_a_handler(tmp_path: Path) -> None:
         "set_transition": {"style": "zoom_in"},
         "add_sfx": {"sfx_type": "pop", "at_word": "w3"},
         "auto_sfx": {},
+        "generate_sfx": {"prompt": "crowd gasp", "at_word": "w3"},
+        "add_voiceover": {"text": "hello", "at_word": "w1"},
+        "remove_voiceover": {"voiceover_id": "vo1"},
+        "dub_video": {"target_language": "hi"},
+    }
+    failing = {  # handled: an actionable failure is the right answer for these inputs
+        "remove_insert": "unknown_overlay",
+        "remove_voiceover": "unknown_voiceover",
+        "generate_sfx": "generation_unavailable",  # nothing prepared (no ElevenLabs)
+        "add_voiceover": "generation_unavailable",
     }
     vad = [SpeechRange(start=0.0, end=10.0)]
     state = ToolState(_long_timeline(), speech=vad, catalog=_catalog(tmp_path))
     for tool in TOOLS:
         result = execute(tool.name, minimal.get(tool.name, {}), state)
-        if tool.name == "remove_insert":  # handled: unknown id is an actionable failure
-            assert isinstance(result, ToolFailure) and result.errors[0].code == "unknown_overlay"
+        if tool.name in failing:
+            assert isinstance(result, ToolFailure), tool.name
+            assert result.errors[0].code == failing[tool.name], result
             continue
         assert isinstance(result, ToolOutcome), (tool.name, result)
 

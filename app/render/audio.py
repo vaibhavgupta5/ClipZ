@@ -53,16 +53,18 @@ def audio_filter(
     lufs: float = _LUFS,
     music: tuple[float, float] | None = None,
     sfx: list[tuple[float, float, float]] | None = None,
+    ducks: list[tuple[float, float, float]] | None = None,
 ) -> str:
     """Full audio filter. spans = [(src_in, src_out, speed)]; empty = whole input.
 
     Inputs: 0 = voice, 1 = music bed (when ``music``), then one input per SFX hit.
     music = (level_db, output_duration_s): looped by the caller, ducked under the voice.
     sfx = [(at_s, gain_db, max_s)]: each hit trimmed (short fade) and delayed to its time.
+    ducks = [(start_s, end_s, db)]: the voice is lowered there (voiceover narration).
     Everything is mixed first and loudness-normalised together.
     """
     tail = f"aresample=async=1,{_norm_filter(measured, lufs)}"
-    parts = [f"{_voice_filter(spans, denoise)}[v0]"]
+    parts = [f"{_voice_filter(spans, denoise)}{_duck_chain(ducks or [])}[v0]"]
     bed = "[v0]"
     if music is not None:
         level_db, duration_s = music
@@ -89,6 +91,18 @@ def audio_filter(
     else:
         parts.append(f"{bed}{tail}[aout]")
     return ";".join(parts)
+
+
+def _duck_chain(ducks: list[tuple[float, float, float]]) -> str:
+    """Timed volume dips on the voice (one ``volume`` filter per window)."""
+    out = ""
+    for start_s, end_s, db in ducks:
+        if not -40.0 <= db <= 0.0:
+            raise ValueError(f"duck level {db} dB outside -40..0")
+        if end_s <= start_s:
+            continue
+        out += f",volume=enable='between(t,{start_s:.3f},{end_s:.3f})':volume={db:.1f}dB"
+    return out
 
 
 def _voice_filter(spans: list[tuple[float, float, float]], denoise: bool) -> str:

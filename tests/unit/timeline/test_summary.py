@@ -48,7 +48,7 @@ def _timeline() -> Timeline:
 
 EXPECTED = """timeline v3 | 5.000s | 2 clips | 12.0 cuts/min | words w1..w2 | 0 beats
 captions word_highlight center_lower wpl=2 size=84 #FFFFFF/#FFD400
-zooms 1 | overlays 1 | music yes | sfx 0
+zooms 1 | overlays 1 | music yes | sfx 0 | voiceovers 0 | dub none
 style tech_explainer_fast_v1 | reframe center | audio loudnorm-default
 overlays: ins1(image/pip_pop @w2+80ms 1100ms)
 music: m1 [attribution required]"""
