@@ -63,6 +63,7 @@ async def test_page_projects_renders_and_brainstorm() -> None:
 
         pid = ready.json()["project_id"]
         assert (await client.get(f"/projects/{pid}/renders")).json() == {"renders": []}
+        assert (await client.get(f"/projects/{pid}/source")).status_code == 404  # no upload
 
         resp = await client.post(
             f"/projects/{pid}/brainstorm",

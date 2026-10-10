@@ -13,6 +13,9 @@ def test_page_wires_every_feature() -> None:
         "download",  # download button
         "X-API-Key",  # media fetched with the key, never in a URL
         "plan_edit",  # plan card
+        "/source",  # original video tab
+        'data-tab="original"',
+        "resetPanels(p)",  # switching project clears the right panel
     ):
         assert needle in html, needle
     assert 'innerHTML = `<video src="${src}"' in html  # blob URL, not a raw media URL

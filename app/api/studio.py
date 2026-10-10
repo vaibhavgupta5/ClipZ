@@ -3,6 +3,7 @@
 GET  /app                              the ClipZ studio page (static HTML, no build step)
 GET  /projects                         the caller's projects, newest first, with status
 GET  /projects/{id}/renders            previews/exports, newest first
+GET  /projects/{id}/source             the original (normalised) upload, if still kept
 POST /projects/{id}/brainstorm         talk the edit through with the Director (no edits);
                                        ends with a suggested final prompt to send
 """
@@ -20,7 +21,7 @@ from app import db as db_ops
 from app.agent.context import project_data
 from app.agent.workspace import latest_bundle
 from app.api.deps import DbDep, UserDep, owned_project
-from app.models import Job, Project, Render
+from app.models import Asset, Job, Project, Render
 from app.models import Timeline as TimelineRow
 from app.providers.base import ChatMessage, ChatRequest, LLMProvider
 from app.providers.gemini import ProviderUnavailable
@@ -88,6 +89,22 @@ async def list_renders(project_id: uuid.UUID, db: DbDep, user_id: UserDep) -> di
             }
             for r in rows
         ]
+    }
+
+
+@router.get("/projects/{project_id}/source")
+async def get_source(project_id: uuid.UUID, db: DbDep, user_id: UserDep) -> dict[str, object]:
+    """The original video as ingested (normalised master), served by GET /media/..."""
+    await owned_project(db, user_id, project_id)
+    master = await db_ops.find_one(db, Asset, {"project_id": project_id, "kind": "master"})
+    store = get_storage(get_settings())
+    if master is None or not store.path_for(master.storage_key).is_file():
+        raise HTTPException(status_code=404, detail="original video not available")
+    return {
+        "url": store.public_url(master.storage_key),
+        "duration_s": (master.duration_ms or 0) / 1000,
+        "width": master.width,
+        "height": master.height,
     }
 
 

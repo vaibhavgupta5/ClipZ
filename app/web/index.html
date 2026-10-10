@@ -144,6 +144,7 @@ pre.summary { white-space: pre-wrap; font: 12px/1.6 var(--mono); background: var
   <section id="right">
     <div class="tabs">
       <button class="tab on" data-tab="results">Results</button>
+      <button class="tab" data-tab="original">Original</button>
       <button class="tab" data-tab="subs">Subtitles</button>
       <button class="tab" data-tab="timeline">Timeline</button>
     </div>
@@ -152,6 +153,10 @@ pre.summary { white-space: pre-wrap; font: 12px/1.6 var(--mono); background: var
       <div class="bar" id="rbar" hidden><div></div></div>
       <div class="title" style="padding-left:0">Renders</div>
       <div id="renders"></div>
+    </div>
+    <div class="pane" id="pane-original">
+      <div class="player" id="origPlayer">No project selected</div>
+      <div class="badge" id="origMeta"></div>
     </div>
     <div class="pane" id="pane-subs"><div class="sub" id="subs">No transcript yet.</div></div>
     <div class="pane" id="pane-timeline">
@@ -183,7 +188,8 @@ const store = {
 // local dev API instead (its CORS settings allow it).
 const API = location.protocol === "file:" ? "http://localhost:8000" : "";
 const DEFAULT_KEY = "reelforge-dev-key"; // the dev workspace (same as the Postman collection)
-const S = { key: store.get("rf_key", ""), project: null, mode: "brainstorm", busy: false, blobs: {} };
+const S = { key: store.get("rf_key", ""), project: null, mode: "brainstorm", busy: false, blobs: {}, playing: null, original: null };
+const current = (pid) => S.project?.project_id === pid; // late responses for another project are dropped
 
 // ---------- API helpers ----------
 async function api(path, opts = {}) {
@@ -265,6 +271,7 @@ async function openProject(p) {
   document.querySelectorAll(".proj").forEach((e) => e.classList.remove("active"));
   await loadProjects();
   $("#log").innerHTML = "";
+  resetPanels(p);
   setEnabled(p.status === "ready");
   if (p.status !== "ready") {
     say("sys", p.status === "processing" ? "Analysing the video (transcript, scenes, beats)… this view updates when ready." : `Project status: ${p.status}`);
@@ -275,10 +282,12 @@ async function openProject(p) {
   if (p.status === "ready") {
     try {
       const { messages } = await api(`/projects/${p.project_id}/messages`);
+      if (!current(p.project_id)) return;
       for (const m of messages) say(m.role === "user" ? "user" : "assistant", m.content);
     } catch {}
   }
   await Promise.all([loadRenders(), loadTimeline()]);
+  if ($("#pane-original").classList.contains("on")) loadOriginal();
 }
 
 async function waitReady(pid) {
@@ -336,6 +345,7 @@ async function brainstorm(text) {
     thinking.remove();
     hist.push({ role: "assistant", content: r.reply + (r.final_prompt ? `\n\nFINAL PROMPT: ${r.final_prompt}` : "") });
     store.set(`rf_brain_${pid}`, hist);
+    if (!current(pid)) return; // saved; shown when you come back to that project
     say("brain", r.reply);
     if (r.final_prompt) finalCard(r.final_prompt);
   } catch (e) { thinking.remove(); say("sys", `Brainstorm failed: ${e.message}`); hist.pop(); }
@@ -356,6 +366,7 @@ async function edit(text) {
   S.busy = true; $("#send").disabled = true;
   try {
     await sse(`/projects/${pid}/messages`, { method: "POST", body: JSON.stringify({ text }) }, (ev, d) => {
+      if (!current(pid)) return; // switched project mid-run: the edit continues on the server
       switch (ev) {
         case "tool_call": {
           if (d.name === "plan_edit") { planCard(d.args); }
@@ -385,7 +396,8 @@ async function edit(text) {
       }
     });
   } catch (e) { say("sys", `Request failed: ${e.message}`); }
-  S.busy = false; $("#send").disabled = false; loadTimeline(); loadRenders();
+  S.busy = false;
+  if (current(pid)) { $("#send").disabled = false; loadTimeline(); loadRenders(); }
 }
 
 function planCard(a) {
@@ -419,10 +431,46 @@ async function blobUrl(url) {
 }
 
 async function play(url) {
-  if (!url) return;
+  if (!url || !S.project) return;
+  const pid = S.project.project_id;
+  S.playing = { pid, url };
   const box = $("#player"); box.textContent = "Loading…";
-  try { const src = await blobUrl(url); box.innerHTML = `<video src="${src}" controls autoplay playsinline></video>`; }
-  catch (e) { box.textContent = `Cannot load video: ${e.message}`; }
+  try {
+    const src = await blobUrl(url);
+    if (!current(pid) || S.playing?.url !== url) return;
+    box.innerHTML = `<video src="${src}" controls autoplay playsinline></video>`;
+  } catch (e) { if (current(pid)) box.textContent = `Cannot load video: ${e.message}`; }
+}
+
+function resetPanels(p) {
+  S.playing = null; S.original = null;
+  $("#player").textContent = "No render yet";
+  $("#renders").innerHTML = '<div class="badge">Loading…</div>';
+  $("#origPlayer").textContent = "Open this tab to load the original";
+  $("#origMeta").textContent = "";
+  const waiting = p.status === "ready" ? "Loading…" : "Not analysed yet.";
+  $("#subs").textContent = waiting;
+  $("#summary").textContent = p.status === "ready" ? "Loading…" : "No timeline yet.";
+  showProgress(null);
+}
+
+async function loadOriginal() {
+  if (!S.project) return;
+  const pid = S.project.project_id;
+  if (S.original === pid) return;
+  S.original = pid;
+  const box = $("#origPlayer"); box.textContent = "Loading…";
+  try {
+    const src = await api(`/projects/${pid}/source`);
+    const blob = await blobUrl(src.url);
+    if (!current(pid)) return;
+    box.innerHTML = `<video src="${blob}" controls playsinline></video>`;
+    $("#origMeta").textContent = `${src.width || "?"}×${src.height || "?"} · ${src.duration_s ? src.duration_s.toFixed(1) + " s" : ""} · as uploaded (normalised)`;
+  } catch (e) {
+    if (!current(pid)) return;
+    S.original = null;
+    box.textContent = e.status === 404 ? "The original is no longer kept for this project." : `Cannot load original: ${e.message}`;
+  }
 }
 
 async function download(url, name) {
@@ -431,7 +479,9 @@ async function download(url, name) {
 
 async function loadRenders() {
   if (!S.project) return;
-  const { renders } = await api(`/projects/${S.project.project_id}/renders`).catch(() => ({ renders: [] }));
+  const pid = S.project.project_id;
+  const { renders } = await api(`/projects/${pid}/renders`).catch(() => ({ renders: [] }));
+  if (!current(pid)) return;
   const box = $("#renders"); box.innerHTML = renders.length ? "" : '<div class="badge">Nothing rendered yet.</div>';
   for (const r of renders) {
     const d = document.createElement("div"); d.className = "render";
@@ -445,22 +495,24 @@ async function loadRenders() {
     box.appendChild(d);
   }
   const latest = renders.find((r) => r.status === "done" && r.url);
-  if (latest && !$("#player video")) play(latest.url);
+  if (latest && S.playing?.pid !== pid) play(latest.url);
 }
 
 async function loadTimeline() {
   if (!S.project || S.project.status !== "ready") return;
+  const pid = S.project.project_id;
   try {
-    const t = await api(`/projects/${S.project.project_id}/timeline`);
+    const t = await api(`/projects/${pid}/timeline`);
+    if (!current(pid)) return;
     $("#summary").textContent = `version ${t.version}\n\n${t.summary}`;
     renderSubs(t.timeline.transcript.words || []);
-  } catch (e) { $("#summary").textContent = e.status === 404 ? "No timeline yet." : e.message; }
+  } catch (e) { if (current(pid)) $("#summary").textContent = e.status === 404 ? "No timeline yet." : e.message; }
 }
 
 function renderSubs(words) {
   const box = $("#subs"); box.innerHTML = "";
   if (!words.length) { box.textContent = "No speech detected."; return; }
-  let line = null, lineStart = -1;
+  let line = null;
   words.forEach((w, i) => {
     if (i % 8 === 0) {
       line = document.createElement("div"); line.className = "line";
@@ -503,6 +555,7 @@ document.querySelectorAll(".mode").forEach((b) => (b.onclick = () => setMode(b.d
 document.querySelectorAll(".tab").forEach((b) => (b.onclick = () => {
   document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("on", x === b));
   document.querySelectorAll(".pane").forEach((p) => p.classList.toggle("on", p.id === `pane-${b.dataset.tab}`));
+  if (b.dataset.tab === "original") loadOriginal();
 }));
 $("#send").onclick = submit;
 $("#input").addEventListener("input", autosize);
