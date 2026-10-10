@@ -1,5 +1,7 @@
 """Deterministic fake providers for unit tests and local dev without keys."""
 
+from collections.abc import Callable
+
 from app.providers.base import (
     Candidate,
     ChatReply,
@@ -10,6 +12,7 @@ from app.providers.base import (
     SfxClip,
     VisualQuery,
 )
+from app.providers.tools import TextSink, ToolTurnReply, ToolTurnRequest
 
 
 class FakeLLMProvider:
@@ -139,3 +142,33 @@ class FakeSfxProvider:
 
     async def download(self, clip_id: str) -> bytes:
         return f"FAKE-WAV:{clip_id}".encode()
+
+
+class ScriptedToolLLM:
+    """ToolCallingLLM that replays scripted turns and records every request.
+
+    Each script entry is a ToolTurnReply or a function of the request (to react to
+    tool results). Running past the script ends the turn with no calls.
+    """
+
+    provider_name = "scripted"
+
+    def __init__(
+        self,
+        script: "list[ToolTurnReply | Callable[[ToolTurnRequest], ToolTurnReply]]",
+        model: str = "scripted",
+    ) -> None:
+        self.model = model
+        self.script = list(script)
+        self.requests: list[ToolTurnRequest] = []
+
+    async def complete_with_tools(
+        self, request: ToolTurnRequest, on_text: TextSink | None = None
+    ) -> ToolTurnReply:
+        """Pop the next scripted turn; stream its text to ``on_text``."""
+        self.requests.append(request)
+        step = self.script.pop(0) if self.script else ToolTurnReply(text="(script ended)")
+        reply = step(request) if callable(step) else step
+        if on_text is not None and reply.text:
+            on_text(reply.text)
+        return reply.model_copy(update={"model": reply.model or self.model})

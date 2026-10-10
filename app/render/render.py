@@ -106,7 +106,12 @@ async def render_timeline(
         ass_text = ass_for_cues(
             seg.cues,
             font="devanagari" if _needs_devanagari(seg) else "latin",
+            position=tl.captions.position,
             words_per_line=tl.captions.words_per_line,
+            mode=tl.captions.mode,
+            size_px=tl.captions.size_px,
+            base_color=tl.captions.base_color,
+            highlight_color=tl.captions.highlight_color,
         )
         asset_shas = {aid: _sha_file(asset_files[aid]) for aid in _seg_asset_ids(seg, asset_files)}
         key = f"segments/{slice_hash(seg, profile.name, ass_text, asset_shas)}.mp4"
@@ -235,9 +240,17 @@ def _render_segment(
     _run_with_progress(args, seg.end - seg.start, on_progress, base, span)
 
 
+def audio_settings(tl: Timeline) -> tuple[bool, float]:
+    """(denoise, lufs) from the timeline's declarative audio_fx; loudnorm defaults to -14."""
+    denoise = any(e.type == "denoise" for e in tl.audio_fx)
+    lufs = next((e.params.get("lufs", -14.0) for e in tl.audio_fx if e.type == "loudnorm"), -14.0)
+    return denoise, lufs
+
+
 def _render_audio(tl: Timeline, master: str, work: Path) -> str:
     from app.media.probe import probe_file
 
+    denoise, lufs = audio_settings(tl)
     try:
         has_audio = probe_file(master).acodec is not None
     except Exception:
@@ -260,7 +273,7 @@ def _render_audio(tl: Timeline, master: str, work: Path) -> str:
             "-hide_banner",
             *audio_in,
             "-filter_complex",
-            audio_filter(spans),
+            audio_filter(spans, denoise=denoise, lufs=lufs),
             "-map",
             "[aout]",
             "-f",
@@ -283,7 +296,7 @@ def _render_audio(tl: Timeline, master: str, work: Path) -> str:
             "-y",
             *audio_in,
             "-filter_complex",
-            audio_filter(spans, measured),
+            audio_filter(spans, measured, denoise=denoise, lufs=lufs),
             "-map",
             "[aout]",
             "-c:a",

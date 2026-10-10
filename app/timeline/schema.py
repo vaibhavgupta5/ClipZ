@@ -10,6 +10,7 @@ from app.timeline.transcript import Transcript
 Frozen = ConfigDict(frozen=True)
 
 WORD_ID = r"^w\d+$"
+HEX_COLOR = r"^#[0-9A-Fa-f]{6}$"
 MIN_SPEED, MAX_SPEED = 0.25, 4.0
 EPS = 1e-6  # float dust threshold for clip-boundary comparisons
 
@@ -61,6 +62,11 @@ class CaptionConfig(BaseModel):
         default=2, ge=1, description="Words per line (policy cap enforced by validator)"
     )
     style: str = Field(default="from_profile", description="Caption style / preset name")
+    size_px: int = Field(default=84, ge=40, le=160, description="Font size at 1080x1920")
+    base_color: str = Field(default="#FFFFFF", pattern=HEX_COLOR, description="Base text colour")
+    highlight_color: str = Field(
+        default="#FFD400", pattern=HEX_COLOR, description="Active-word colour (word_highlight)"
+    )
 
 
 class Zoom(BaseModel):
@@ -149,6 +155,9 @@ class Timeline(BaseModel):
     output: OutputSpec = Field(default_factory=OutputSpec)
     style_id: str | None = Field(default=None)
     trend_pack: str | None = Field(default=None)
+    reframe: Literal["center", "face", "blur"] = Field(
+        default="center", description="9:16 reframe mode (face falls back to center without tracks)"
+    )
 
     @field_validator("video_clips")
     @classmethod

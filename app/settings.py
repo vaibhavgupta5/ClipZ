@@ -36,6 +36,12 @@ class Settings(BaseSettings):
         default="", description="Claude provider key (empty = unavailable)"
     )
     GEMINI_API_KEY: str = Field(default="", description="Gemini provider key (empty = unavailable)")
+    CLAUDE_DIRECTOR_MODEL: str = Field(
+        default="claude-opus-5", description="Claude model for the Director tool loop"
+    )
+    LLM_EFFORT: str = Field(
+        default="medium", description="Claude effort for the Director (low|medium|high|xhigh|max)"
+    )
     MUSIC_PROVIDER: str = Field(
         default="fake", description="MusicProvider adapter name (chosen in Phase 6)"
     )

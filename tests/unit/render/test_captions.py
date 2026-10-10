@@ -27,7 +27,7 @@ def test_escape_ass() -> None:
 
 def test_ass_dialogue_per_word_with_highlight() -> None:
     doc = ass_for_words(_words(), highlight="w1")
-    assert "Dialogue: 0,0:00:01.20,0:00:01.55,Pop,,0,0,0,,{\\c&H00D4FF&}BILLIONS" in doc
+    assert "Dialogue: 0,0:00:01.20,0:00:01.55,Pop,,0,0,0,,{\\c&H0000D4FF&}BILLIONS{\\r}" in doc
     assert "Dialogue: 0,0:00:01.60,0:00:01.90,Pop,,0,0,0,,Proofs" in doc
 
 
@@ -43,3 +43,30 @@ def test_ass_safe_areas_and_fonts() -> None:
 def test_ass_header_styles_present() -> None:
     doc = ass_for_words(_words())
     assert "[V4+ Styles]" in doc and "Format:" in doc and "[Events]" in doc
+
+
+def test_ass_color_converts_and_rejects() -> None:
+    import pytest
+
+    from app.render.captions_ass import ass_color
+
+    assert ass_color("#FFD400") == "&H0000D4FF&"
+    with pytest.raises(ValueError):
+        ass_color("&H00FFFFFF&,evil")
+
+
+def test_word_highlight_emits_one_event_per_word_with_style() -> None:
+    from app.render.captions_ass import CaptionCue, ass_for_cues
+
+    cues = [
+        CaptionCue(id="w1", start=0.0, end=0.4, text="hi"),
+        CaptionCue(id="w2", start=0.5, end=0.9, text="there"),
+    ]
+    doc = ass_for_cues(
+        cues, words_per_line=2, mode="word_highlight", size_px=120, highlight_color="#00FF00"
+    )
+    events = [ln for ln in doc.splitlines() if ln.startswith("Dialogue:")]
+    assert len(events) == 2
+    assert "{\\c&H0000FF00&}hi{\\r} there" in events[0]
+    assert "hi {\\c&H0000FF00&}there{\\r}" in events[1]
+    assert ",120,&H00FFFFFF," in doc

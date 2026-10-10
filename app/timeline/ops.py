@@ -9,6 +9,7 @@ from app.timeline.schema import (
     EPS,
     MAX_SPEED,
     MIN_SPEED,
+    AudioEffect,
     CaptionConfig,
     Diff,
     MusicBed,
@@ -125,6 +126,24 @@ def delete_words(tl: Timeline, word_ids: list[str]) -> tuple[Timeline, Diff]:
         clips = _remove_source_range(clips, first.start, last.end)
     new_tl = _replace_clips(tl, clips)
     return new_tl, Diff(op="delete_words", details={"words": ",".join(sorted(set(word_ids)))})
+
+
+def delete_gaps(tl: Timeline, ranges: list[tuple[float, float]]) -> tuple[Timeline, Diff]:
+    """Delete non-speech source ranges (silence). Refuses any range that touches a word."""
+    clips = list(tl.video_clips)
+    for lo, hi in sorted(ranges):
+        if hi - lo < EPS:
+            continue
+        hit = next((w for w in tl.transcript.words if w.start < hi and w.end > lo), None)
+        if hit is not None:
+            raise OpError(
+                "cuts_word",
+                f"gap {lo:.3f}-{hi:.3f}s overlaps word {hit.id}",
+                "gaps must lie strictly between words; use delete_range to remove speech",
+            )
+        clips = _remove_source_range(clips, lo, hi)
+    new_tl = _replace_clips(tl, clips)
+    return new_tl, Diff(op="delete_gaps", details={"ranges": str(len(ranges))})
 
 
 def delete_range(
@@ -268,6 +287,20 @@ def set_captions(tl: Timeline, config: CaptionConfig) -> tuple[Timeline, Diff]:
     """Replace the caption config."""
     new_tl = tl.model_copy(update={"captions": config}, deep=True)
     return new_tl, Diff(op="set_captions", details={"mode": config.mode})
+
+
+def set_audio_fx(tl: Timeline, fx: list[AudioEffect]) -> tuple[Timeline, Diff]:
+    """Replace the declarative audio effect chain (denoise/loudnorm/ducking)."""
+    new_tl = tl.model_copy(update={"audio_fx": list(fx)}, deep=True)
+    return new_tl, Diff(op="set_audio_fx", details={"fx": ",".join(e.type for e in fx)})
+
+
+def set_reframe(tl: Timeline, mode: str) -> tuple[Timeline, Diff]:
+    """Set the 9:16 reframe mode."""
+    if mode not in ("center", "face", "blur"):
+        raise OpError("bad_reframe", f"reframe mode {mode!r} unknown", "pick center, face or blur")
+    new_tl = tl.model_copy(update={"reframe": mode}, deep=True)
+    return new_tl, Diff(op="set_reframe", details={"mode": mode})
 
 
 def set_music(tl: Timeline, bed: MusicBed | None) -> tuple[Timeline, Diff]:

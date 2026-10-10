@@ -80,6 +80,24 @@ class Scale:
 
 
 @dataclass(frozen=True)
+class ReframeBlur:
+    """Full-frame reframe: blurred fill background + contained foreground."""
+
+    input: str
+    width: int
+    height: int
+
+    def render(self, out: str) -> str:
+        w, h = self.width, self.height
+        return (
+            f"{self.input}split[rb][rf];"
+            f"[rb]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=20[lbg];"
+            f"[rf]scale={w}:{h}:force_original_aspect_ratio=decrease[lfg];"
+            f"[lbg][lfg]overlay=(W-w)/2:(H-h)/2{out}"
+        )
+
+
+@dataclass(frozen=True)
 class BlurBg:
     """Contain an image over its own blurred fullscreen copy."""
 

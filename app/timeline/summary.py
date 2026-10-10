@@ -13,10 +13,13 @@ def summarize(tl: Timeline) -> str:
         f"timeline v{tl.version} | {tl.duration_s:.3f}s | {n_clips} clips | "
         f"{cuts_per_min:.1f} cuts/min | words {word_span} | {len(tl.transcript.beats)} beats",
         f"captions {tl.captions.mode} {tl.captions.position} "
-        f"wpl={tl.captions.words_per_line} | zooms {len(tl.zooms)} | "
+        f"wpl={tl.captions.words_per_line} size={tl.captions.size_px} "
+        f"{tl.captions.base_color}/{tl.captions.highlight_color}",
+        f"zooms {len(tl.zooms)} | "
         f"overlays {len(tl.overlays)} | music {'yes' if tl.music else 'no'} | "
         f"sfx {len(tl.sfx)}",
-        f"style {tl.style_id or 'none'}",
+        f"style {tl.style_id or 'none'} | reframe {tl.reframe} | "
+        f"audio {','.join(e.type for e in tl.audio_fx) or 'loudnorm-default'}",
     ]
     if tl.overlays:
         rendered = ", ".join(

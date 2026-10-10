@@ -24,6 +24,11 @@
 - analyze_asset worker + analysis/transcript endpoints; transcript-free project creation.
 - Gate: docs/gates/PHASE-3.md. Gaps: real ASR untested (no speech fixtures/keys); faces empty until Phase 9.
 
-## Phase 4: Renderer (next)
+## Phase 4: Renderer (DONE — gate GO)
+- Typed filtergraph, ASS captions (EN+HI), EDL compiler, two-pass -14 LUFS audio, segment cache.
+- 9 goldens (SSIM ≥ 0.98); 30 s preview 12.5 s CPU; render worker + API; injection fuzz green.
+- Gate: docs/gates/PHASE-4.md. Gaps: NVENC untested; face reframe = center; animation deferred to styles.
+
+## Phase 5: Agent core + MVP (next)
 
 ## Phases 1-10: not started

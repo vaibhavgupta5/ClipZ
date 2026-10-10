@@ -48,3 +48,30 @@ def test_parse_loudnorm_json() -> None:
 def test_audio_filter_with_speed_spans() -> None:
     filt = audio_filter([(0.0, 1.0, 2.0)])
     assert "atrim" in filt and "atempo=2.000" in filt
+
+
+def test_audio_filter_honours_denoise_and_target() -> None:
+    import pytest
+
+    plain = audio_filter([(0.0, 1.0, 1.0)], denoise=False, lufs=-16.0)
+    assert "afftdn" not in plain and "I=-16.0" in plain
+    assert "afftdn" not in audio_filter([], denoise=False)
+    with pytest.raises(ValueError):
+        audio_filter([], lufs=-3.0)
+
+
+def test_audio_settings_from_timeline_fx() -> None:
+    from app.render.render import audio_settings
+    from app.timeline.schema import AudioEffect
+    from tests.unit.timeline.test_ops import _timeline
+
+    assert audio_settings(_timeline()) == (False, -14.0)
+    tl = _timeline().model_copy(
+        update={
+            "audio_fx": [
+                AudioEffect(type="denoise"),
+                AudioEffect(type="loudnorm", params={"lufs": -16.0}),
+            ]
+        }
+    )
+    assert audio_settings(tl) == (True, -16.0)

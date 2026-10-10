@@ -1,4 +1,4 @@
-"""Audio chain: denoise -> speed -> A/V guard -> loudnorm (two-pass, -14 LUFS)."""
+"""Audio chain: [denoise] -> speed -> A/V guard -> loudnorm (two-pass, default -14 LUFS)."""
 
 import json
 import re
@@ -22,8 +22,10 @@ def atempo_chain(speed: float) -> list[str]:
     return [f"atempo={s:.3f}" for s in stages]
 
 
-def _norm_filter(measured: dict[str, str] | None) -> str:
-    base = f"loudnorm=I={_LUFS}:TP=-1.5:LRA=11"
+def _norm_filter(measured: dict[str, str] | None, lufs: float = _LUFS) -> str:
+    if not -24.0 <= lufs <= -8.0:
+        raise ValueError(f"loudness target {lufs} outside -24..-8 LUFS")
+    base = f"loudnorm=I={lufs:.1f}:TP=-1.5:LRA=11"
     if measured is None:
         return base + ":print_format=json"
     params = ":".join(f"{k}={v}" for k, v in measured.items())
@@ -32,19 +34,24 @@ def _norm_filter(measured: dict[str, str] | None) -> str:
 
 
 def audio_filter(
-    spans: list[tuple[float, float, float]], measured: dict[str, str] | None = None
+    spans: list[tuple[float, float, float]],
+    measured: dict[str, str] | None = None,
+    *,
+    denoise: bool = True,
+    lufs: float = _LUFS,
 ) -> str:
     """Full audio filter. spans = [(src_in, src_out, speed)]; empty = whole input."""
-    tail = f"aresample=async=1,{_norm_filter(measured)}"
+    tail = f"aresample=async=1,{_norm_filter(measured, lufs)}"
+    dn = ",afftdn" if denoise else ""
     if not spans:
-        return f"afftdn,{tail}[aout]"
+        return f"anull{dn},{tail}[aout]"
     parts: list[str] = []
     labels: list[str] = []
     for i, (src_in, src_out, speed) in enumerate(spans):
         tempo = "," + ",".join(atempo_chain(speed)) if abs(speed - 1.0) > 1e-9 else ""
         parts.append(
             f"[0:a]atrim=start={src_in:.3f}:end={src_out:.3f},"
-            f"asetpts=PTS-STARTPTS,afftdn{tempo}[ax{i}]"
+            f"asetpts=PTS-STARTPTS{dn}{tempo}[ax{i}]"
         )
         labels.append(f"[ax{i}]")
     if len(labels) == 1:

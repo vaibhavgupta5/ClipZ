@@ -138,3 +138,15 @@ def test_deleting_everything_is_rejected() -> None:
     )
     with pytest.raises(OpError, match="empty"):
         ops.delete_words(tl, ["w1", "w2", "w3", "w4", "w5", "w6"])
+
+
+def test_delete_gaps_removes_silence_between_words() -> None:
+    # w1 ends 0.4, w2 starts 0.5: 0.1 s gap
+    tl, diff = ops.delete_gaps(_timeline(), [(0.42, 0.48)])
+    assert diff.op == "delete_gaps"
+    assert tl.duration_s == pytest.approx(2.94)
+
+
+def test_delete_gaps_refuses_to_cut_words() -> None:
+    with pytest.raises(OpError, match="cuts_word"):
+        ops.delete_gaps(_timeline(), [(0.3, 0.6)])

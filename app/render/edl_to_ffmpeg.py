@@ -11,6 +11,7 @@ from app.render.graph import (
     FadeIO,
     FilterGraph,
     OverlayAt,
+    ReframeBlur,
     Scale,
     ScaleCrop,
     SetPts,
@@ -119,7 +120,10 @@ def build_video_filter(
         label = graph.add(Trim("[0:v]", start=clip.src_in, end=clip.src_out))
         if abs(clip.speed - 1.0) > 1e-9:
             label = graph.add(SetPts(_lbl(label), factor=1.0 / clip.speed))
-        label = graph.add(ScaleCrop(_lbl(label), profile.width, profile.height))
+        if reframe == "blur":
+            label = graph.add(ReframeBlur(_lbl(label), profile.width, profile.height))
+        else:  # center (face falls back here without tracks)
+            label = graph.add(ScaleCrop(_lbl(label), profile.width, profile.height))
         chains.append(_lbl(label))
     main = chains[0] if len(chains) == 1 else graph.add(Concat(tuple(chains), n=len(chains)))
 
@@ -168,7 +172,6 @@ def build_video_filter(
 
     if ass_path is not None and tl.captions.mode != "off":
         main = graph.add(AssBurn(_lbl(main), ass_path))
-    _ = reframe  # face-tracked reframe lands with face tracks (Phase 7); center assumed
     return graph.compile()
 
 
