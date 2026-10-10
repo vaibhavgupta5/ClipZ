@@ -160,3 +160,33 @@ async def test_reply_is_grounded_in_what_actually_happened() -> None:
     )
     assert res.reply.startswith("I removed the silences")
     assert "Applied: denoise." in res.reply and "Not applied: trim (unknown_word)." in res.reply
+
+
+async def test_director_follows_up_once_on_skipped_request_items() -> None:
+    def check(req: ToolTurnRequest) -> ToolTurnReply:
+        note = req.messages[-1].text
+        assert note.startswith("Not done yet from the user's request: background music")
+        return _call("denoise", "late")  # model acts on the follow-up (music lib absent here)
+
+    script = [_call("denoise"), _done("All done!"), check, _done("Done now."), _done("never")]
+    res, _ws, _, llm = await _run(script, msg="clean the noise and add calm music")
+    assert res.coverage_followup == ["background music"]
+    assert len(llm.requests) == 4  # one follow-up, then it stops (no second review)
+
+
+async def test_edits_after_an_export_trigger_a_fresh_export() -> None:
+    script = [
+        ToolTurnReply(
+            calls=[
+                ToolCall(id="e", name="export", args={}),
+                ToolCall(id="d", name="denoise", args={}),
+            ],
+            stop_reason="tool_use",
+        ),
+        _done("Exported."),
+    ]
+    res, ws, _, _ = await _run(script, msg="denoise it")
+    assert ws.render_calls == [
+        "final",
+        "final",
+    ]  # stale export replaced by one of the final version

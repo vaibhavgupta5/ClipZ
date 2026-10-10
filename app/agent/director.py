@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
+from app.agent import coverage
 from app.agent.context import timeline_state
 from app.agent.router import route
 from app.providers.tools import (
@@ -94,6 +95,7 @@ class DirectorResult:
     usage: Usage = field(default_factory=Usage)
     model: str = ""
     history: list[AgentMessage] = field(default_factory=list)
+    coverage_followup: list[str] = field(default_factory=list)  # gaps the model was told about
 
 
 def _ms(started: float) -> int:
@@ -121,6 +123,7 @@ class _Turn:
         self.needs_preview = False
         self.rendered = False
         self.log: list[tuple[str, bool, str]] = []  # (tool, ok, short reason)
+        self.exported_version: int | None = None  # version the last final export rendered
 
     async def call(self, call: ToolCall) -> ToolResult:
         """Execute one tool call end to end and build the model-facing result."""
@@ -173,6 +176,8 @@ class _Turn:
                 render_id, job_id = await self.ws.render(profile)
                 self.result.renders.append(render_id)
                 self.rendered = self.rendered or profile == "preview"
+                if profile == "final":
+                    self.exported_version = await self.ws.current_version()
                 kind: EventType = "preview_queued" if profile == "preview" else "render_queued"
                 self.emit(
                     Event(kind, {"render_id": render_id, "job_id": job_id, "profile": profile})
@@ -193,7 +198,21 @@ class _Turn:
         return ToolResult(call_id=call.id, name=call.name, content=message, is_error=True)
 
     async def finish(self) -> None:
-        """Queue one preview if this turn changed something visible and none was rendered."""
+        """Queue one preview if this turn changed something visible and none was rendered;
+        re-export if edits landed after this turn's export (it would be stale)."""
+        if self.exported_version is not None:
+            current = await self.ws.current_version()
+            if current != self.exported_version:
+                render_id, job_id = await self.ws.render("final")
+                self.result.renders.append(render_id)
+                self.exported_version = current
+                data: dict[str, object] = {
+                    "render_id": render_id,
+                    "job_id": job_id,
+                    "profile": "final",
+                }
+                self.emit(Event("render_queued", data))
+            self.rendered = True  # the final export of this version doubles as the preview
         if self.needs_preview and not self.rendered:
             render_id, job_id = await self.ws.render("preview")
             self.result.renders.append(render_id)
@@ -231,6 +250,7 @@ async def run_director(
     tl = (await ws.state()).timeline
     msgs = [*(history or []), AgentMessage(role="user", text=f"{message}\n\n{timeline_state(tl)}")]
     tools = tool_specs()
+    reviewed = False
     for i in range(max_iters):
         result.iterations = i + 1
         reply = await llm.complete_with_tools(
@@ -246,6 +266,24 @@ async def run_director(
             result.reply = reply.text or "I couldn't complete that request."
             break
         if not reply.calls:
+            gaps = (
+                []
+                if reviewed
+                else coverage.missing(
+                    message, {t for t, ok, _ in turn.log if ok}, (await ws.state()).timeline
+                )
+            )
+            if gaps:
+                # One targeted follow-up for parts of the request the model skipped.
+                reviewed = True
+                result.coverage_followup = gaps
+                note = (
+                    "Not done yet from the user's request: " + "; ".join(gaps) + ". "
+                    "Call the tools for these now. Skip one only if it is truly impossible, "
+                    "and then say why."
+                )
+                msgs.append(AgentMessage(role="user", text=note))
+                continue
             result.reply = reply.text
             break
         results = [await turn.call(c) for c in reply.calls]
