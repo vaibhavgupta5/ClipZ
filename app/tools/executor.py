@@ -386,12 +386,23 @@ DEFAULT_LAYOUT: dict[str, Layout] = {
 }
 TYPE = {"icon": "icon", "gif": "gif", "image": "image", "video": "video", "meme": "meme"}
 SPLIT_REFRAMES = frozenset({"split_bottom", "split"})
+# Reframes whose inserts go to the top panel by default. Adaptive opens the split view
+# exactly where a top-panel visual shows, so a sticker or full-screen insert would never
+# trigger it.
+PANEL_REFRAMES = SPLIT_REFRAMES | {"adaptive"}
 SPLIT_SECONDS_PER_INSERT = 1.2  # split screen: the top panel is a fast visual feed
+# Adaptive reframe (segments.py: _adaptive_split_intervals) bridges any two inserts whose
+# end-to-start gap is < its min_hold_s (6s) into one continuous split section. Inserts must
+# therefore land >= min_hold_s + a typical insert's on-screen time apart (start to start),
+# or nearly every insert cascades into one giant split block and blur never shows through.
+ADAPTIVE_GAP_S = 14.0
+ADAPTIVE_SECONDS_PER_INSERT = 14.0
 CARD_TYPES = frozenset({"headline_card", "stat_card"})  # banners don't block inserts
 
 
 def _is_split(tl: Timeline, layout: str | None) -> bool:
-    return layout == "split_top" or (layout is None and tl.reframe in SPLIT_REFRAMES)
+    """True when an insert goes to the top panel (asked for, or the framing's default)."""
+    return layout == "split_top" or (layout is None and tl.reframe in PANEL_REFRAMES)
 
 
 def _catalog(state: ToolState) -> AssetCatalog:
@@ -991,7 +1002,8 @@ def _auto_visuals(tool: ToolDef, p: mvp.AutoVisualsIn, state: ToolState) -> Tool
     catalog = _catalog(state)
     tl = state.timeline
     is_adaptive = tl.reframe in ("adaptive", "split_adaptive")
-    split = _is_split(tl, p.layout) and not is_adaptive
+    panel = _is_split(tl, p.layout)  # top-panel visuals: start as the word is said
+    split = panel and not is_adaptive  # permanent split: dense feed, gaps filled
     cues = find_cues(tl, catalog, tuple(p.kinds))
     if not cues:
         raise OpError(
@@ -1000,12 +1012,17 @@ def _auto_visuals(tool: ToolDef, p: mvp.AutoVisualsIn, state: ToolState) -> Tool
             "use add_inserts with explicit queries, or skip visuals",
         )
     busy = [(s, e) for s, e, _ in _windows(tl)]
+    gap_s, per_s = MIN_GAP_S, DENSITY[p.density]
+    if panel and is_adaptive:  # each visual opens its own split section, blur in between
+        gap_s, per_s = ADAPTIVE_GAP_S, ADAPTIVE_SECONDS_PER_INSERT
+    elif split:
+        gap_s, per_s = SPLIT_SECONDS_PER_INSERT, SPLIT_SECONDS_PER_INSERT * 1.5
     plan = plan_cues(
         cues,
         tl.duration_s,
-        gap_s=MIN_GAP_S * 2.0 if is_adaptive else (SPLIT_SECONDS_PER_INSERT if split else MIN_GAP_S),
-        per_s=6.0 if is_adaptive else (SPLIT_SECONDS_PER_INSERT * 1.5 if split else DENSITY[p.density]),
-        hook_s=0.0 if (split or is_adaptive) else HOOK_S,
+        gap_s=gap_s,
+        per_s=per_s,
+        hook_s=0.0 if panel else HOOK_S,
         used={_library_id(o.asset) for o in tl.overlays},
         busy=busy,
     )
@@ -1016,11 +1033,11 @@ def _auto_visuals(tool: ToolDef, p: mvp.AutoVisualsIn, state: ToolState) -> Tool
         if found is None:
             continue
         _, item = found
+        anchor = cue.first if panel else cue.word
         try:
-            dur, start = _place(tl, cue.kind, cue.first if (split or is_adaptive) else cue.word, None, p.layout)
-            if split:
+            dur, start = _place(tl, cue.kind, anchor, None, p.layout)
+            if panel:
                 tl = _hand_over(tl, start)
-            anchor = cue.first if (split or is_adaptive) else cue.word
             tl, _ = ops.add_overlay(
                 tl, _overlay(tl, cue.kind, item.id, item, anchor, dur, p.layout)
             )

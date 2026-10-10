@@ -11,6 +11,7 @@ import unicodedata
 from collections.abc import Callable
 from pathlib import Path
 
+from app.analysis.models import FaceBox
 from app.media.ffmpeg import ffmpeg_path, run_ffmpeg, run_get_stderr
 from app.render.audio import audio_filter, parse_loudnorm_json
 from app.render.captions_ass import ass_for_cues
@@ -24,12 +25,15 @@ from app.render.edl_to_ffmpeg import (
     select_video_encoder,
 )
 from app.render.errors import RenderError
+from app.render.framing import Focus, focus_for
 from app.render.segments import Segment, slice_hash, split_segments
 from app.storage import Storage
 from app.timeline import snap
+from app.timeline.errors import OpError
 from app.timeline.schema import Timeline
 
 _PROFILE_BY_NAME = {"preview": PREVIEW, "final": FINAL}
+FOCUSED = frozenset({"split_bottom", "split", "face"})  # reframes that crop around the face
 
 
 def profile_for(name: str) -> RenderProfile:
@@ -109,8 +113,12 @@ async def render_timeline(
     store: Storage,
     workdir: str,
     on_progress: Callable[[float], None],
+    faces: list[FaceBox] | None = None,
 ) -> dict[str, object]:
-    """Render a timeline to object storage. Returns {key, stats, timeline_hash}."""
+    """Render a timeline to object storage. Returns {key, stats, timeline_hash}.
+
+    ``faces`` (tracked on the master) steer split-view and face crops onto the speaker.
+    """
     work = Path(workdir)
     segments = split_segments(tl)
     total_dur = tl.duration_s or 0.001
@@ -140,8 +148,12 @@ async def render_timeline(
             animation=tl.captions.animation,
         )
         asset_shas = {aid: _sha_file(asset_files[aid]) for aid in _seg_asset_ids(seg, asset_files)}
-        cut_fx = tl.transition if seg.is_speech_cut else "none"
-        variant = f"{profile.name}:{seg_reframe}:{cut_fx}"  # these change every pixel
+        cut_fx = tl.transition if seg.is_real_cut else "none"
+        focus: Focus | None = None
+        if seg_reframe in FOCUSED:
+            clip = seg.clips[0]
+            focus = focus_for(faces or [], clip.src_in, clip.src_out, clip.speed)
+        variant = f"{profile.name}:{seg_reframe}:{cut_fx}:{focus}"  # these change every pixel
         key = f"segments/{slice_hash(seg, variant, ass_text, asset_shas)}.mp4"
         local = work / f"seg{seg.index}.mp4"
         try:
@@ -163,7 +175,9 @@ async def render_timeline(
                 on_progress,
                 seg.start / total_dur,
                 (seg.end - seg.start) / total_dur,
-                seg.is_speech_cut,
+                seg.is_real_cut,
+                seg_reframe,
+                focus,
             )
             store.put_bytes(key, local.read_bytes(), "video/mp4")
         seg_paths.append(str(local))
@@ -242,6 +256,8 @@ def _render_segment(
     base: float,
     span: float,
     styled_cut: bool = False,
+    reframe: str | None = None,
+    focus: Focus | None = None,
 ) -> None:
     ass_path = out_path + ".ass"
     Path(ass_path).write_text(ass_text, encoding="utf-8")
@@ -261,9 +277,11 @@ def _render_segment(
         profile,
         asset_labels,
         ass_path=ass_path if tl.captions.mode != "off" else None,
+        reframe=reframe,  # the segment's own layout (adaptive: split or blur), as cached
         overlay_windows=seg.overlays,
         zoom_windows=seg.zooms,
         after_cut=styled_cut,
+        focus=focus,
     )
     args = (
         [ffmpeg_path(), "-y"]
@@ -284,9 +302,6 @@ def audio_settings(tl: Timeline) -> tuple[bool, float]:
 
 def sfx_hits(tl: Timeline, files: dict[str, str]) -> list[tuple[str, float, float, float]]:
     """(file, output_seconds, gain_db, max_s) for each hit whose anchor survives the cuts."""
-    from app.timeline import snap
-    from app.timeline.errors import OpError
-
     out = []
     for hit in tl.sfx:
         path = files.get(hit.asset)
@@ -305,9 +320,6 @@ def voiceover_hits(
     tl: Timeline, files: dict[str, str]
 ) -> tuple[list[tuple[str, float, float, float]], list[tuple[float, float, float]]]:
     """Voiceovers as mix hits (file, at_s, gain_db, len_s) plus voice duck windows."""
-    from app.timeline import snap
-    from app.timeline.errors import OpError
-
     hits, ducks = [], []
     for vo in tl.voiceovers:
         path = files.get(vo.asset)

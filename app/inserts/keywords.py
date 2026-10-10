@@ -51,7 +51,7 @@ TECH_ALWAYS = frozenset({
     "deepseek", "mistral", "qwen", "grok", "pytorch", "tensorflow", "huggingface",
     "linux", "ubuntu", "neovim", "figma", "langchain", "ollama", "supabase", "vercel",
     "firebase", "digitalocean", "cloudflare", "solana", "bitcoin", "ethereum",
-})
+})  # fmt: skip
 
 # Everyday words that double as brand names: a brand only when the transcript capitalises
 # them (Whisper writes "React", "Rust", "Apple", "Go" for the products) or when in a compound.

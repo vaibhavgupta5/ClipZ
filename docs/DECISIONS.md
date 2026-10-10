@@ -114,3 +114,32 @@
   - Clickable subtitles insert word IDs into the prompt; the timeline summary has undo/redo.
   - New read APIs: `GET /projects`, `GET /projects/{id}/renders`. The key is kept in the browser's localStorage (dev auth, as before).
 - Live run on testInput.mp4 showed the model exporting with `monetized=false` on its own after the guard refused. The Director now refuses `export(monetized=false)` unless the user's own message waives it ("not monetised", "personal use", "export as is"); otherwise the model is told to ask. The step cap is 14, and the cap path also runs the coverage autofix.
+
+## ADR-021: "My style" learns from the user's own edits; adaptive framing fixes
+- Owner request (2026-10-11): learn how the user edits and draft a Director prompt in that style, which the user reviews before sending.
+- Learned from the user's own work, not reference reels (the Blueprint's `extract_style` stays future work). `app/style/learn.py` is pure and deterministic, with no model call:
+  - Samples are the user's other projects with at least one kept edit (current version > 1), newest 20. The current project is excluded, since re-learning its own edits would only re-apply them.
+  - Each sample is the accepted timeline. Two facts come from outside the timeline: a finished final render (exported) and the tools the Director ran (from the chat log, used for filler removal).
+  - Exported reels weigh 2x. Categorical choices take the weighted majority (newest wins ties), numbers the weighted median. An optional element (music, zooms, visuals, SFX, headline...) is a habit only when kept in at least half of the weighted reels. Center crop is the default and is never asked for.
+  - Counts (visuals, zooms) are rates per minute, scaled to the new video's length.
+  - Only structured timeline fields are read. Transcript text never enters the prompt (rule 6); the Director picks the moments from the new video.
+- `GET /projects/{id}/style-prompt` returns the habits (label, instruction, share), the drafted prompt and a note. It edits nothing: the studio's "My style" button shows a review card with an editable prompt, and Send goes through the normal chat endpoint, so the coverage net, consent guard and every other check still apply.
+- Not persisted: the profile is recomputed on each request, so it always reflects the latest edits. Saved, named profiles remain future work.
+- Fixes found while reviewing adaptive / split / blur:
+  - Regression from 961d384: the segment renderer styled every clip boundary as a cut, so transitions fired at breath trims. Segments are now `is_real_cut` only when the clip is entered through `snap.real_cuts` (ADR-019 restored).
+  - In adaptive framing, inserts without a layout became stickers or full-screen inserts, so the split view never opened unless the model passed `layout="split_top"`. Adaptive now defaults inserts to the top panel like split framing does (`PANEL_REFRAMES`). The 14 s adaptive spacing applies only to top-panel visuals.
+  - Each adaptive segment passes its own reframe (split or blur) to the filter builder, so the pixels always match the segment cache key.
+  - Captions are hidden under a meme for the meme's own window: from the word start for top-panel memes, but not for the chained panel extension, which could last the whole reel.
+
+## ADR-022: CPU face tracking (YuNet) so split view and face framing follow the speaker
+- Problem: split view centre-cropped the speaker panel. On portrait phone footage that kept the middle half of the frame and cut off heads; `face` mode fell back to a centre crop.
+- Detector: OpenCV's YuNet (`cv2.FaceDetectorYN`), a ~230 KB CNN that runs on the CPU.
+  - Model `face_detection_yunet_2023mar.onnx` is vendored in `app/analysis/data/yunet/` with its MIT licence (Shiqi Yu). Source: https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet (MIT for all files; the 2023mar variant is the one for OpenCV 4.x).
+  - Dependency `opencv-python-headless>=4.10,<5` (Apache-2.0). OpenCV 5 changes the ONNX engine and drops the Haar cascades.
+  - Haar cascades were tried first and rejected: on a real phone vlog they produced frame-sized false positives on ceiling lights and missed faces that YuNet found.
+- `app/analysis/faces_cv.py` samples 2 fps at 320 px through FFmpeg and keeps the largest face per frame. It runs at render time for split/adaptive/face timelines, cached by the master's sha256 plus the tracker version (`work/cache/faces/`). Existing projects therefore benefit without re-analysis. It is best effort: any failure yields no faces, never a failed render. The analysis bundle still uses `FakeFaces`; MediaPipe may replace both in Phase 9.
+- `app/render/framing.py` builds a focus path: keyframes every 1 s of source, a median of the detections within 1 s, gaps held, a 3-tap smoothing, a 0.04 dead zone against jitter, positions rounded to 0.02 so the cache stays stable.
+  - The crop compiles to typed FFmpeg expressions (a linear ramp per move), so the panel pans over 1 s when the speaker moves or another person talks.
+  - The face lands horizontally centred at 42% of the crop height (head room).
+  - With no faces, the default is (0.5, 0.38), a head-room bias for selfie footage. For landscape sources the vertical position is irrelevant (no vertical crop).
+- The focus path is part of each segment's cache variant. The centre and blur modes are unchanged.

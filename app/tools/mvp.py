@@ -261,7 +261,11 @@ class InsertAssetIn(BaseModel):
     layout: (
         Literal["cutaway_full", "pip_pop", "split_top", "lower_third_card", "blur_bg_contain"]
         | None
-    ) = Field(default=None, description="Default: gif -> pip_pop, image/meme -> blur_bg_contain")
+    ) = Field(
+        default=None,
+        description="Default: split_top in split/adaptive framing, else gif -> pip_pop, "
+        "image/meme -> blur_bg_contain",
+    )
     duration_ms: int | None = Field(default=None, ge=600, le=3000)
 
 
@@ -277,7 +281,10 @@ class InsertMemeIn(BaseModel):
     layout: (
         Literal["cutaway_full", "pip_pop", "split_top", "lower_third_card", "blur_bg_contain"]
         | None
-    ) = Field(default=None, description="Default: blur_bg_contain or split_top")
+    ) = Field(
+        default=None,
+        description="Default: split_top in split/adaptive framing, else blur_bg_contain",
+    )
     duration_ms: int | None = Field(default=None, ge=1000, le=3000)
 
 
@@ -403,7 +410,7 @@ class AutoVisualsIn(BaseModel):
         default=["icon", "video", "image", "gif"], min_length=1
     )
     layout: Literal["split_top", "pip_pop", "blur_bg_contain", "cutaway_full"] | None = Field(
-        default=None, description="Default: split_top in split screen, else per kind"
+        default=None, description="Default: split_top in split/adaptive framing, else per kind"
     )
 
 
@@ -706,7 +713,10 @@ TOOLS: list[ToolDef] = [
     ),
     ToolDef(
         name="reframe_9x16",
-        description="9:16 vertical reframe mode: 'adaptive' (recommended: smart split-screen when top visuals exist, middle view with gaussian blur when no visual), 'split_bottom' (permanent split), 'blur' (middle blurred fill), or 'center'.",
+        description="9:16 vertical reframe mode: 'adaptive' (split screen while a top-panel "
+        "visual shows, speaker in the middle over a Gaussian-blurred fill otherwise), "
+        "'split_bottom' (permanent split: speaker at the bottom, visuals on top), 'blur' "
+        "(middle view, blurred fill), 'face' or 'center' (crop).",
         input_model=ReframeIn,
         output_model=OpOut,
         needs_preview=True,

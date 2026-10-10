@@ -27,7 +27,7 @@ class Segment(BaseModel):
     overlays: list[tuple[Overlay, float, float]]  # (overlay, rel_start, rel_end)
     zooms: list[tuple[Zoom, float]]  # (zoom, rel_at)
     cues: list[CaptionCue]  # relative-timed
-    is_speech_cut: bool = False
+    is_real_cut: bool = False  # entered through a real cut: gets the timeline's transition
     is_split_layout: bool = False
 
 
@@ -134,7 +134,7 @@ def _chained_split_overlay_windows(
         if not interval_overlays:
             continue
 
-        for idx, (ov, at, o_end) in enumerate(interval_overlays):
+        for idx, (ov, at, _o_end) in enumerate(interval_overlays):
             # First overlay starts at interval boundary so top is never empty at start
             cur_start = s_int if idx == 0 else max(s_int, at)
             # If not last overlay, extend until next overlay starts
@@ -157,9 +157,12 @@ def split_segments(tl: Timeline) -> list[Segment]:
     When reframe is adaptive, clips are further sliced at smoothed split-screen
     boundaries so the visual layout dynamically settles for >= 6-7s between split
     and blurred middle view without rapid flickering, and top panel is always filled.
+    Only the first slice of a clip entered through a real cut is styled as a cut (ADR-019):
+    breath trims and adaptive layout switches stay hard cuts.
     """
     offsets = _offsets(tl)
     words = tl.transcript.words
+    real_cuts = snap.real_cuts(tl)
     segments: list[Segment] = []
     seg_idx = 0
 
@@ -170,6 +173,7 @@ def split_segments(tl: Timeline) -> list[Segment]:
         split_intervals = [(0.0, tl.duration_s)]
 
     chained_windows = _chained_split_overlay_windows(tl, split_intervals)
+    meme_windows = _meme_windows(tl)
 
     for i, clip in enumerate(tl.video_clips):
         clip_start, clip_end = offsets[i], offsets[i] + clip.output_len
@@ -224,7 +228,6 @@ def split_segments(tl: Timeline) -> list[Segment]:
                 if start - 1e-6 <= at <= end + 1e-6:
                     zooms.append((zoom, at - start))
 
-            meme_windows = _meme_windows(tl)
             cues: list[CaptionCue] = []
             for w in words:
                 try:
@@ -257,7 +260,7 @@ def split_segments(tl: Timeline) -> list[Segment]:
                     overlays=overlays,
                     zooms=zooms,
                     cues=cues,
-                    is_speech_cut=is_first_slice_of_clip and (i > 0),
+                    is_real_cut=is_first_slice_of_clip and i in real_cuts,
                     is_split_layout=is_split_layout,
                 )
             )
@@ -267,16 +270,20 @@ def split_segments(tl: Timeline) -> list[Segment]:
 
 
 def _meme_windows(tl: Timeline) -> list[tuple[float, float]]:
-    """Output-time windows of meme inserts (captions are hidden under them)."""
+    """Output-time windows of meme inserts (captions are hidden under them).
+
+    The meme's own window (``snap.overlay_window``: top-panel memes start as their word is
+    said). Not the chained panel window: a panel meme may stay up for the rest of a split
+    section, and the captions must come back once its punchline has landed.
+    """
     out = []
     for o in tl.overlays:
         if o.type != "meme":
             continue
         try:
-            at = snap.output_time_of(tl, o.anchor_word, "end") + o.offset_ms / 1000.0
+            out.append(snap.overlay_window(tl, o))
         except OpError:
             continue
-        out.append((at, at + o.duration_ms / 1000.0))
     return out
 
 

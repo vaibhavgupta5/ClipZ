@@ -93,3 +93,39 @@ async def test_other_users_cannot_see_projects() -> None:
             f"/projects/{pid}/brainstorm", json={"messages": [{"role": "user", "content": "x"}]}
         )
         assert bad.status_code == 404
+
+
+async def test_style_prompt_learns_from_the_users_other_reels() -> None:
+    async with _client(_Brain("ok"), "stylist") as client, _client(_Brain("ok"), "other") as other:
+
+        async def project(name: str) -> str:
+            body = {
+                "name": name,
+                "transcript": {"words": _words(), "language": "en"},
+                "source_asset": "master",
+                "source_duration_s": 2.0,
+            }
+            return str((await client.post("/projects", json=body)).json()["project_id"])
+
+        target = await project("new reel")
+        first = (await client.get(f"/projects/{target}/style-prompt")).json()
+        assert first["samples"] == 0 and first["prompt"] is None and "edit a reel" in first["note"]
+
+        captions = {"size_px": 110, "uppercase": True, "position": "center"}
+        for name in ("old one", "old two"):
+            pid = await project(name)
+            op = {"op": "set_captions", "config": captions}
+            assert (await client.post(f"/projects/{pid}/ops", json=op)).status_code == 200
+        await project("never edited")  # v1 only: nothing kept, not learned from
+        # the target's own edits are never learned (they would just be re-applied)
+        op = {"op": "set_captions", "config": {"size_px": 60}}
+        assert (await client.post(f"/projects/{target}/ops", json=op)).status_code == 200
+
+        body = (await client.get(f"/projects/{target}/style-prompt")).json()
+        assert body["samples"] == 2 and body["exported"] == 0
+        assert "uppercase" in body["prompt"] and "110 px" in body["prompt"]
+        assert {h["area"] for h in body["habits"]} == {"captions"}
+
+        assert (await other.get(f"/projects/{target}/style-prompt")).status_code == 404
+        fresh = (await client.post("/projects", json={"name": "uploading"})).json()["project_id"]
+        assert (await client.get(f"/projects/{fresh}/style-prompt")).status_code == 409

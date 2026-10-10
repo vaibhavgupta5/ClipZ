@@ -213,7 +213,8 @@ class Timeline(BaseModel):
     reframe: Literal["center", "face", "blur", "split_bottom", "split", "adaptive"] = Field(
         default="center",
         description="9:16 reframe mode (face falls back to center without tracks; "
-        "split_bottom puts the speaker in the bottom half; adaptive switches between split and blurred middle view)",
+        "split_bottom puts the speaker in the bottom half; adaptive switches between split "
+        "and the blurred middle view)",
     )
 
     @field_validator("video_clips")

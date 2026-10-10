@@ -106,6 +106,10 @@ pre.summary { white-space: pre-wrap; font: 12px/1.6 var(--mono); background: var
 .modal .box p { margin: 0; color: var(--dim); font-size: 13px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 0; }
 .chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; }
+.stylebtn { padding: 4px 10px; border-radius: 999px; font: 12px var(--mono); color: var(--blue); }
+.stylebtn:hover:not(:disabled) { border-color: var(--blue); }
+.habit { font: 11.5px var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); cursor: help; }
+.card textarea.review { margin-top: 10px; min-height: 150px; resize: vertical; font: 12.5px/1.55 var(--mono); }
 @media (max-width: 1100px) { main { grid-template-columns: 210px minmax(0, 1fr) 330px; } }
 @media (max-width: 820px) { main { grid-template-columns: 1fr; } aside, #right { display: none; } }
 </style>
@@ -138,6 +142,7 @@ pre.summary { white-space: pre-wrap; font: 12px/1.6 var(--mono); background: var
       <div class="modes">
         <button class="mode on" data-mode="brainstorm">✻ Brainstorm</button>
         <button class="mode" data-mode="edit">● Edit</button>
+        <button class="stylebtn" id="styleBtn" disabled title="Draft an edit prompt from how you edited your other reels; you review it before sending">✦ My style</button>
         <span class="hint" id="modehint">Talk it through. Nothing is edited.</span>
       </div>
       <div class="row">
@@ -306,7 +311,7 @@ async function waitReady(pid) {
   }
 }
 
-function setEnabled(on) { $("#input").disabled = !on; $("#send").disabled = !on; if (on) $("#input").focus(); }
+function setEnabled(on) { $("#input").disabled = !on; $("#send").disabled = !on; $("#styleBtn").disabled = !on; if (on) $("#input").focus(); }
 
 // ---------- upload ----------
 async function upload(file) {
@@ -420,6 +425,37 @@ function askCard(d) {
     const b = document.createElement("button"); b.className = "chip"; b.textContent = o;
     b.onclick = () => edit(o); c.querySelector(".chips").appendChild(b);
   }
+}
+
+// ---------- my style: a prompt learned from your other reels, reviewed before sending ----------
+async function myStyle() {
+  if (!S.project || S.busy) return;
+  const pid = S.project.project_id;
+  const btn = $("#styleBtn"); btn.disabled = true;
+  const wait = add("learning your style from your other reels…", "msg sys");
+  try {
+    const r = await api(`/projects/${pid}/style-prompt`);
+    wait.remove();
+    if (current(pid)) styleCard(r);
+  } catch (e) { wait.remove(); if (current(pid)) say("sys", `Could not learn your style: ${e.message}`); }
+  btn.disabled = S.project?.status !== "ready";
+}
+
+function styleCard(r) {
+  if (!r.prompt) { add(`<h4>Your style</h4><div>${esc(r.note)}</div>`, "card"); return; }
+  const habits = r.habits.map((h) => `<span class="habit" title="${esc(h.instruction)}">${esc(h.label)} · ${Math.round(h.share * 100)}%</span>`).join("");
+  const c = add(`<h4>Your style</h4><div class="badge">${esc(r.note)}</div><div class="chips">${habits}</div>
+    <textarea class="review" maxlength="2000" spellcheck="false">${esc(r.prompt)}</textarea>
+    <div class="actions"><button class="primary" data-a="send">Send to Director</button><button data-a="discard">Discard</button></div>`, "card final");
+  const text = c.querySelector("textarea");
+  c.querySelector('[data-a="send"]').onclick = () => {
+    const prompt = text.value.trim();
+    if (!prompt || S.busy) return;
+    c.querySelectorAll("button, textarea").forEach((x) => (x.disabled = true));
+    setMode("edit"); edit(prompt);
+  };
+  c.querySelector('[data-a="discard"]').onclick = () => c.remove();
+  text.focus();
 }
 
 // ---------- results ----------
@@ -564,6 +600,7 @@ document.querySelectorAll(".tab").forEach((b) => (b.onclick = () => {
   if (b.dataset.tab === "original") loadOriginal();
 }));
 $("#send").onclick = submit;
+$("#styleBtn").onclick = myStyle;
 $("#input").addEventListener("input", autosize);
 $("#input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } });
 $("#file").onchange = (e) => upload(e.target.files[0]);

@@ -16,6 +16,8 @@ def test_page_wires_every_feature() -> None:
         "/source",  # original video tab
         'data-tab="original"',
         "resetPanels(p)",  # switching project clears the right panel
+        "/style-prompt",  # My style: learned prompt, reviewed before sending
+        'id="styleBtn"',
     ):
         assert needle in html, needle
     assert 'innerHTML = `<video src="${src}"' in html  # blob URL, not a raw media URL

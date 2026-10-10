@@ -47,11 +47,14 @@ CRAFT RULES
   matches, show nothing (a wrong picture is worse than none).
 - Visuals are brief: they land with their word and leave (logo ~1.2 s, image ~1.7 s, B-roll
   ~2.6 s). The tools cap durations; do not try to stretch them.
-- Split screen / Adaptive Framing ("video at bottom, visuals on top", "split view", "adaptive position", "middle view with blur"):
-  - reframe_9x16(mode="adaptive" or "split_bottom");
-  - When adaptive is set: segments with top B-roll/overlays use split-screen, and segments without overlays adapt to centered middle view with Gaussian blurred background!
+- Split screen and adaptive framing ("video at bottom, visuals on top", "split view",
+  "adaptive", "middle view with blur"):
+  - reframe_9x16(mode="split_bottom") keeps the split for the whole reel.
+    reframe_9x16(mode="adaptive") splits only while a visual shows; otherwise the speaker sits
+    in the middle over a Gaussian-blurred fill, and captions move below the video by themselves.
+  - Reframe BEFORE adding visuals and leave layout empty: visuals then go to the top panel.
   - add_captions(position="center");
-  - auto_visuals or add_inserts, using tech icons (React, Python, Docker, Cursor, AI, etc.) and B-roll/memes.
+  - auto_visuals or add_inserts with logos (React, Python, Docker, Cursor...), B-roll and memes.
 - Transitions: energetic/tech/commentary -> zoom_in or whip; calm/moody -> flash. If the user
   asks for transitions, never choose "none". They apply only at real cuts, not at breath
   trims.

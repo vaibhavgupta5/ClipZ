@@ -7,6 +7,8 @@ through escaped ASS files (captions_ass.py), never through filter arguments.
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from app.render.framing import Focus, crop_xy
+
 
 def _s(seconds: float) -> str:
     """Millisecond-precise timestamp."""
@@ -110,20 +112,29 @@ class ReframeBlur:
 
 @dataclass(frozen=True)
 class ReframeSplitBottom:
-    """Split view: solid sleek dark top canvas + speaker video constrained to the bottom half."""
+    """Split view: solid sleek dark top canvas + speaker video constrained to the bottom half.
+
+    ``focus`` (face centre, normalized source coords) steers the bottom crop so a portrait
+    source keeps the speaker's head in the panel; None crops the centre.
+    """
 
     input: str
     width: int
     height: int
+    focus: Focus | None = None
 
     def render(self, out: str) -> str:
         w, h = self.width, self.height
         half_h = h // 2
+        crop = f"crop={w}:{half_h}"
+        if self.focus is not None:
+            x, y = crop_xy(self.focus)
+            crop += f":x={x}:y={y}"
         return (
             f"{self.input}split[rsb_bg][rsb_fg];"
             f"[rsb_bg]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=40,"
             f"drawbox=x=0:y=0:w={w}:h={half_h}:color=0x0d0e15@1.0:t=fill[sbg];"
-            f"[rsb_fg]scale={w}:{half_h}:force_original_aspect_ratio=increase,crop={w}:{half_h},"
+            f"[rsb_fg]scale={w}:{half_h}:force_original_aspect_ratio=increase,{crop},"
             f"eq=contrast=1.12:brightness=0.01:saturation=1.18,unsharp=5:5:0.8:5:5:0.4[sfg];"
             f"[sbg][sfg]overlay=0:{half_h}{out}"
         )
@@ -149,16 +160,21 @@ class BlurBg:
 
 @dataclass(frozen=True)
 class ScaleCrop:
-    """Scale to fill then center-crop (reframe)."""
+    """Scale to fill then crop: the centre, or around ``focus`` (face framing)."""
 
     input: str
     width: int
     height: int
+    focus: Focus | None = None
 
     def render(self, out: str) -> str:
+        crop = f"crop={self.width}:{self.height}"
+        if self.focus is not None:
+            x, y = crop_xy(self.focus)
+            crop += f":x={x}:y={y}"
         return (
             f"{self.input}scale={self.width}:{self.height}:"
-            f"force_original_aspect_ratio=increase,crop={self.width}:{self.height}{out}"
+            f"force_original_aspect_ratio=increase,{crop}{out}"
         )
 
 

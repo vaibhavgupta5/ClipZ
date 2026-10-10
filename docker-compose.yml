@@ -56,6 +56,7 @@ services:
     volumes:
       - ./app:/srv/app:ro
       - ./assets:/srv/assets:ro
+      - ./assets/generated:/srv/assets/generated  # writable: GeneratedAudioStore cache (SFX/voiceover/dub)
       - ./upload:/srv/data/upload
       - ./work:/srv/data/work
       - ./editedVideo:/srv/data/editedVideo
@@ -90,6 +91,7 @@ services:
     volumes:
       - ./app:/srv/app:ro
       - ./assets:/srv/assets:ro
+      - ./assets/generated:/srv/assets/generated  # writable: GeneratedAudioStore cache (SFX/voiceover/dub)
       - ./upload:/srv/data/upload
       - ./work:/srv/data/work
       - ./editedVideo:/srv/data/editedVideo

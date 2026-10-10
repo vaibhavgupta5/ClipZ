@@ -72,4 +72,23 @@
   the image library's tags limit relevance (e.g. "technology" is broad); the critic still reviews the
   timeline summary, not rendered frames.
 
+## Phase 6c: My style + framing fixes (plan docs/plans/PHASE-6c-style-and-framing.md, ADR-021)
+- Built: style learning from the user's own edited reels (`app/style/learn.py`, pure, weighted
+  majority/median, exported reels 2x, habits need >= half the reels, counts sized to the new video);
+  `GET /projects/{id}/style-prompt`; studio "✦ My style" button -> review card (habit chips with
+  shares, editable prompt, Send to Director / Discard). Verified live on the dev workspace (7 reels,
+  3 exported) and in headless Chromium.
+- Fixed: transitions at every breath trim (regression), adaptive inserts never opening the split
+  view without an explicit layout, adaptive segment reframe decided twice, meme caption windows;
+  `make check` green again (ruff/format errors from the adaptive commit).
+- Gaps: profiles are recomputed per request, not saved or named; no LLM tailoring of the draft to
+  the new transcript (the Director does that); the monetised flag of past exports is not stored, so
+  the draft says "export" and the consent guard asks when needed.
+- Face framing (ADR-022): CPU face tracking (OpenCV YuNet, vendored MIT model) at render time,
+  cached by master hash; split view and `face` mode pan smoothly to keep the speaker's face in the
+  panel (head-room bias when no face is found). Verified on a real portrait vlog: heads that the
+  centre crop cut are now kept. Gaps: the worker image must be rebuilt for the new dependency;
+  analysis bundles still carry no faces (inserts do not avoid faces yet); one face is followed
+  (the largest), not the active speaker.
+
 ## Phases 7-10: not started

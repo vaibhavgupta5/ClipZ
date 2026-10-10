@@ -14,6 +14,8 @@ from typing import Any
 
 from app import db as db_ops
 from app import telemetry
+from app.analysis.faces_cv import track_cached
+from app.analysis.models import FaceBox
 from app.db import Database
 from app.models import Asset, Job, TimelineVersion
 from app.models import Render as RenderRow
@@ -25,6 +27,7 @@ from app.storage import LocalStorage, get_storage
 from app.timeline.schema import Timeline as TimelineModel
 
 PROGRESS_STEP = 0.1
+FACE_FRAMED = frozenset({"split_bottom", "split", "adaptive", "face"})
 
 
 async def _set_job(
@@ -155,9 +158,14 @@ async def _run_render(
             holder["db"] = frac
             push(round(frac, 3))
 
+    faces: list[FaceBox] = []
+    if timeline.reframe in FACE_FRAMED:  # split view / face crop: find the speaker's face
+        cache = Path(settings.WORK_DIR) / "cache" / "faces"
+        faces = await asyncio.to_thread(track_cached, str(master_path), master.sha256, cache)
+
     with tempfile.TemporaryDirectory(prefix="clipz-render-") as tmp:
         out = await render_timeline(
-            timeline, str(master_path), asset_files, profile, store, tmp, _progress
+            timeline, str(master_path), asset_files, profile, store, tmp, _progress, faces
         )
     key = str(out["key"])
     await db_ops.update(
