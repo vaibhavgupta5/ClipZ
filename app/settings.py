@@ -23,6 +23,22 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field(
         default="redis://localhost:6379/0", description="Redis DSN for Arq queues"
     )
+    STORAGE_BACKEND: Literal["local", "s3"] = Field(
+        default="local",
+        description="Storage backend: local | s3 (AWS S3, DigitalOcean Spaces, Cloudflare R2, MinIO)",
+    )
+    S3_ENDPOINT_URL: str = Field(
+        default="",
+        description="S3 endpoint URL (e.g. https://nyc3.digitaloceanspaces.com or empty for AWS)",
+    )
+    S3_BUCKET_NAME: str = Field(default="", description="S3 bucket / Space name")
+    S3_REGION: str = Field(default="us-east-1", description="S3 / Spaces region")
+    S3_ACCESS_KEY_ID: str = Field(default="", description="S3 access key / Spaces key")
+    S3_SECRET_ACCESS_KEY: str = Field(default="", description="S3 secret key / Spaces secret")
+    S3_PUBLIC_URL_BASE: str = Field(
+        default="",
+        description="Optional public CDN / Spaces URL base (e.g. https://bucket.nyc3.cdn.digitaloceanspaces.com)",
+    )
     UPLOAD_DIR: str = Field(
         default="./upload", description="Raw uploads (deleted once ingest succeeds)"
     )

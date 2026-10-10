@@ -60,3 +60,77 @@ def test_delete_tree_is_scoped(tmp_path: Path) -> None:
     for bad in ("renders/p1", "projects", "projects/p1/sub", "segments/x"):
         with pytest.raises(ValueError):
             s.delete_tree(bad)
+
+
+def test_get_storage_returns_local_by_default(tmp_path: Path) -> None:
+    from app.settings import Settings
+    from app.storage import get_storage
+
+    settings = Settings(
+        STORAGE_BACKEND="local",
+        UPLOAD_DIR=str(tmp_path / "up"),
+        WORK_DIR=str(tmp_path / "work"),
+        EDITED_DIR=str(tmp_path / "edit"),
+    )
+    store = get_storage(settings)
+    assert isinstance(store, LocalStorage)
+
+
+def test_s3_storage_mocked_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import MagicMock
+    from app.settings import Settings
+    from app.storage import S3Storage, get_storage
+
+    mock_client = MagicMock()
+    mock_s3_store: dict[str, bytes] = {}
+
+    def mock_put_object(key: str, data: bytes, content_type: str = "binary/octet-stream"):
+        mock_s3_store[key] = data
+
+    def mock_get_object(key: str):
+        if key not in mock_s3_store:
+            raise Exception("NoSuchKey")
+        return mock_s3_store[key], "video/mp4"
+
+    def mock_head_object(key: str):
+        if key not in mock_s3_store:
+            raise Exception("NoSuchKey")
+        return {"ContentLength": len(mock_s3_store[key])}
+
+    def mock_delete_object(key: str):
+        mock_s3_store.pop(key, None)
+
+    mock_client.put_object.side_effect = mock_put_object
+    mock_client.get_object.side_effect = mock_get_object
+    mock_client.head_object.side_effect = mock_head_object
+    mock_client.delete_object.side_effect = mock_delete_object
+    mock_client.head_bucket.return_value = True
+
+    from app.providers import s3 as s3_provider
+    monkeypatch.setattr(s3_provider, "S3Client", lambda *args, **kwargs: mock_client)
+
+    settings = Settings(
+        STORAGE_BACKEND="s3",
+        S3_BUCKET_NAME="test-bucket",
+        S3_ENDPOINT_URL="https://nyc3.digitaloceanspaces.com",
+        S3_PUBLIC_URL_BASE="https://cdn.example.com",
+        UPLOAD_DIR=str(tmp_path / "up"),
+        WORK_DIR=str(tmp_path / "work"),
+        EDITED_DIR=str(tmp_path / "edit"),
+    )
+    store = get_storage(settings)
+    assert isinstance(store, S3Storage)
+    assert store.public_url("renders/p1/reel.mp4") == "https://cdn.example.com/renders/p1/reel.mp4"
+
+    # Put bytes
+    store.put_bytes("projects/p1/master.mp4", b"video_data_123", "video/mp4")
+    assert mock_s3_store["projects/p1/master.mp4"] == b"video_data_123"
+    assert store.stat("projects/p1/master.mp4") == len(b"video_data_123")
+    assert store.get_bytes("projects/p1/master.mp4") == b"video_data_123"
+    assert store.writable() is True
+
+    # Delete
+    store.delete("projects/p1/master.mp4")
+    assert "projects/p1/master.mp4" not in mock_s3_store
+
+

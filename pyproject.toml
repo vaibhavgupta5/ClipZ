@@ -24,6 +24,7 @@ dependencies = [
   "faster-whisper>=1.2.1",
   "asyncpg>=0.32.0",
   "opencv-python-headless>=4.10,<5",
+  "boto3>=1.43.111",
 ]
 
 [dependency-groups]

@@ -1,0 +1,85 @@
+# Production Docker Compose for DigitalOcean Droplet ($4-$6/mo)
+# Connected to Tiger Cloud (TimescaleDB) and S3 / DigitalOcean Spaces.
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redisdata:/data
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      TIGER_DATABASE_URL: ${TIGER_DATABASE_URL}
+      REDIS_URL: redis://redis:6379/0
+      UPLOAD_DIR: /srv/data/upload
+      WORK_DIR: /srv/data/work
+      EDITED_DIR: /srv/data/editedVideo
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_PUBLIC_URL_BASE: ${S3_PUBLIC_URL_BASE:-}
+      ASSETS_DIR: /srv/assets
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./assets:/srv/assets:ro
+      - ./assets/generated:/srv/assets/generated
+      - appdata_upload:/srv/data/upload
+      - appdata_work:/srv/data/work
+      - appdata_edited:/srv/data/editedVideo
+    command: uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+
+  worker-cpu:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      TIGER_DATABASE_URL: ${TIGER_DATABASE_URL}
+      REDIS_URL: redis://redis:6379/0
+      UPLOAD_DIR: /srv/data/upload
+      WORK_DIR: /srv/data/work
+      EDITED_DIR: /srv/data/editedVideo
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_PUBLIC_URL_BASE: ${S3_PUBLIC_URL_BASE:-}
+      ASSETS_DIR: /srv/assets
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      HF_HOME: /srv/data/work/.hf
+    volumes:
+      - ./assets:/srv/assets:ro
+      - ./assets/generated:/srv/assets/generated
+      - appdata_upload:/srv/data/upload
+      - appdata_work:/srv/data/work
+      - appdata_edited:/srv/data/editedVideo
+    command: uv run --no-sync arq app.workers.main.WorkerSettings
+
+volumes:
+  redisdata:
+  appdata_upload:
+  appdata_work:
+  appdata_edited:

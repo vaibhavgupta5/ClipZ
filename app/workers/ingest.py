@@ -152,7 +152,7 @@ async def ingest_asset(
 
 async def _run_pipeline(
     db: Database,
-    store: LocalStorage,
+    store: Storage,
     jid: uuid.UUID,
     pid: uuid.UUID,
     storage_key: str,

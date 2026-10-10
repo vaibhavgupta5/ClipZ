@@ -23,7 +23,7 @@ from app.providers.local import resolve_asset_file
 from app.render.errors import RenderError
 from app.render.render import profile_for, render_timeline
 from app.settings import Settings
-from app.storage import LocalStorage, get_storage
+from app.storage import Storage, get_storage
 from app.timeline.schema import Timeline as TimelineModel
 
 PROGRESS_STEP = 0.1
@@ -97,7 +97,7 @@ async def render_task(ctx: dict[str, Any], *, job_id: str, render_id: str) -> di
 
 
 async def _run_render(
-    db: Database, store: LocalStorage, settings: Settings, jid: uuid.UUID, render: RenderRow
+    db: Database, store: Storage, settings: Settings, jid: uuid.UUID, render: RenderRow
 ) -> dict[str, object]:
     version_row = await db_ops.get(db, TimelineVersion, render.timeline_version_id)
     if version_row is None:
