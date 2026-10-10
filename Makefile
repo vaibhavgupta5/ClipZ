@@ -1,4 +1,4 @@
-.PHONY: dev check worker golden eval-live assets down logs
+.PHONY: dev check worker golden eval-live assets icons down logs
 
 dev: ## docker compose up (tiger/timescaledb, redis) + API with reload
 	docker compose up --build -d
@@ -21,6 +21,9 @@ eval-live: ## live-model evals (opt-in, needs provider keys)
 
 assets: ## one-time download of the local music/image/gif/meme libraries (licensed, see ADR-014)
 	uv run python scripts/fetch_assets.py
+
+icons: ## one-time download of brand/tech logo tiles (Simple Icons CC0 + Lobe Icons MIT, ADR-018)
+	uv run python scripts/fetch_icons.py
 
 down:
 	docker compose down

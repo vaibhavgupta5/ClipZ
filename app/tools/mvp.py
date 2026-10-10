@@ -155,7 +155,7 @@ class ReframeIn(BaseModel):
 
     model_config = Frozen
 
-    mode: Literal["center", "face", "blur"] = "center"
+    mode: Literal["center", "face", "blur", "split_bottom", "split"] = "center"
 
 
 class PreviewIn(BaseModel):
@@ -223,10 +223,11 @@ class SearchAssetsIn(BaseModel):
 
     model_config = Frozen
 
-    kind: Literal["image", "gif", "meme"] = Field(
-        description="image = stock photo, gif = animated reaction sticker, meme = popular template"
+    kind: Literal["icon", "image", "gif", "video", "meme"] = Field(
+        description="icon = brand/tech logo (ChatGPT, Claude, Python...), image = stock photo, "
+        "gif = reaction sticker, video = B-roll clip, meme = popular template"
     )
-    query: str = Field(min_length=1, max_length=80, description="2-4 words, e.g. 'money burning'")
+    query: str = Field(min_length=1, max_length=80, description="2-4 words, e.g. 'coding screen'")
     limit: int = Field(default=5, ge=1, le=8)
 
 
@@ -273,7 +274,54 @@ class InsertMemeIn(BaseModel):
     top_text: str = Field(default="", max_length=60, description="<= 6 words")
     bottom_text: str = Field(default="", max_length=60, description="<= 6 words")
     at_word: str = Field(pattern=r"^w\d+$")
+    layout: (
+        Literal["cutaway_full", "pip_pop", "split_top", "lower_third_card", "blur_bg_contain"]
+        | None
+    ) = Field(default=None, description="Default: blur_bg_contain or split_top")
     duration_ms: int | None = Field(default=None, ge=1000, le=3000)
+
+
+class AddHeadlineCardIn(BaseModel):
+    """Headline card or static text banner (e.g. 'Software Dev is Dead')."""
+
+    model_config = Frozen
+
+    text: str = Field(
+        min_length=1, max_length=140, description="Headline or heading text to display"
+    )
+    position: Literal["top", "bottom", "center"] = Field(
+        default="top",
+        description="Placement on screen ('top' = upper safe banner, 'bottom' = lower third)",
+    )
+    style: Literal["banner", "badge", "pill", "minimal", "alert"] = Field(
+        default="banner",
+        description="Visual card style ('banner', 'badge', 'pill', 'minimal', 'alert')",
+    )
+    at_word: str | None = Field(
+        default=None,
+        pattern=r"^w\d+$",
+        description="Word ID where the headline starts (defaults to first word / start of video)",
+    )
+    duration_ms: int | None = Field(
+        default=None,
+        ge=0,
+        le=120000,
+        description="Duration in ms (0 or None = lasts through the entire video)",
+    )
+    bg_color: str | None = Field(
+        default=None,
+        pattern=r"^#[0-9A-Fa-f]{6}$",
+        description="Optional background color hex #RRGGBB",
+    )
+    text_color: str | None = Field(
+        default=None,
+        pattern=r"^#[0-9A-Fa-f]{6}$",
+        description="Optional text color hex #RRGGBB",
+    )
+
+
+class AddTextOverlayIn(AddHeadlineCardIn):
+    """Alias for AddHeadlineCardIn."""
 
 
 class InsertPlanItem(BaseModel):
@@ -282,10 +330,22 @@ class InsertPlanItem(BaseModel):
     model_config = Frozen
 
     at_word: str = Field(pattern=r"^w\d+$", description="Appears as this word ends")
-    kind: Literal["image", "gif", "meme"]
-    query: str = Field(min_length=1, max_length=80, description="2-4 concrete words")
+    kind: Literal["icon", "image", "gif", "video", "meme"]
+    query: str = Field(
+        default="",
+        max_length=80,
+        description="2-4 concrete words; empty = the visual matching what is said at at_word "
+        "(see <visual_candidates>)",
+    )
     top_text: str = Field(default="", max_length=60, description="meme only, <= 6 words")
     bottom_text: str = Field(default="", max_length=60, description="meme only, <= 6 words")
+    layout: (
+        Literal["cutaway_full", "pip_pop", "split_top", "lower_third_card", "blur_bg_contain"]
+        | None
+    ) = Field(default=None, description="Optional layout override")
+    duration_ms: int | None = Field(
+        default=None, ge=600, le=3500, description="Capped per kind (icon 1.5 s ... video 3.5 s)"
+    )
 
 
 class AddInsertsIn(BaseModel):
@@ -293,7 +353,58 @@ class AddInsertsIn(BaseModel):
 
     model_config = Frozen
 
-    items: list[InsertPlanItem] = Field(min_length=1, max_length=8)
+    items: list[InsertPlanItem] = Field(min_length=1, max_length=20)
+    default_layout: (
+        Literal["cutaway_full", "pip_pop", "split_top", "lower_third_card", "blur_bg_contain"]
+        | None
+    ) = Field(default=None, description="Default layout for all planned inserts (e.g. 'split_top')")
+
+
+class PlanMoment(BaseModel):
+    """One keyword moment the plan illustrates."""
+
+    model_config = Frozen
+
+    at_word: str = Field(pattern=r"^w\d+$")
+    show: str = Field(min_length=1, max_length=80, description="What appears, e.g. 'Claude logo'")
+
+
+class PlanEditIn(BaseModel):
+    """The edit plan, written before editing (shown to the user; edits nothing)."""
+
+    model_config = Frozen
+
+    summary: str = Field(min_length=3, max_length=240, description="What the video is + goal")
+    steps: list[str] = Field(min_length=1, max_length=14, description="Ordered tool steps")
+    moments: list[PlanMoment] = Field(default=[], max_length=24)
+    music_mood: str = Field(default="", max_length=40)
+    transition: Literal["none", "zoom_in", "flash", "whip"] | None = None
+
+
+class PlanOut(BaseModel):
+    """Plan accepted; warnings point at moments that cannot work as written."""
+
+    model_config = Frozen
+
+    op: str = "plan_edit"
+    accepted: bool
+    warnings: list[str]
+
+
+class AutoVisualsIn(BaseModel):
+    """Show the matching visual whenever a strong keyword is said (keyword engine)."""
+
+    model_config = Frozen
+
+    density: Literal["light", "normal", "dense"] = Field(
+        default="normal", description="light ~1 per 5 s, normal ~1 per 3 s, dense ~1 per 2 s"
+    )
+    kinds: list[Literal["icon", "video", "image", "gif"]] = Field(
+        default=["icon", "video", "image", "gif"], min_length=1
+    )
+    layout: Literal["split_top", "pip_pop", "blur_bg_contain", "cutaway_full"] | None = Field(
+        default=None, description="Default: split_top in split screen, else per kind"
+    )
 
 
 class InsertsOut(BaseModel):
@@ -502,6 +613,15 @@ class ToolDef(BaseModel):
 
 TOOLS: list[ToolDef] = [
     ToolDef(
+        name="plan_edit",
+        description="Write your edit plan before editing: summary, ordered steps, keyword "
+        "moments to illustrate, music mood, transition. Shown to the user; edits nothing. "
+        "Call it first for any request with more than one edit.",
+        input_model=PlanEditIn,
+        output_model=PlanOut,
+        mutating=False,
+    ),
+    ToolDef(
         name="get_timeline",
         description="Read the current timeline (version, summary, duration). Never edits.",
         input_model=EmptyIn,
@@ -631,10 +751,21 @@ TOOLS: list[ToolDef] = [
     ),
     ToolDef(
         name="add_inserts",
-        description="Best way to add images, reaction GIFs and memes: give the whole plan in "
-        "one call (word, kind, query, meme text). Each item is matched in the licensed "
-        "libraries and placed by the rules, or skipped with a reason.",
+        description="Hand-picked inserts (logos, images, B-roll, reaction GIFs, memes): give "
+        "the whole plan in one call (word, kind, optional query, meme text). Leave query empty "
+        "to use the visual matching what is said at that word. Placed by the rules, or skipped "
+        "with a reason.",
         input_model=AddInsertsIn,
+        output_model=InsertsOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="auto_visuals",
+        description="Keyword-driven B-roll: whenever a strong keyword is said (a brand like "
+        "ChatGPT/Claude/Python -> its logo, 'server' -> server room, 'money' -> cash), show the "
+        "best matching visual right then, briefly. Weak matches are never forced. Use for "
+        "'relevant visuals', 'show what I'm talking about', split-screen top panels.",
+        input_model=AutoVisualsIn,
         output_model=InsertsOut,
         needs_preview=True,
     ),
@@ -717,6 +848,23 @@ TOOLS: list[ToolDef] = [
         "appears as a new timeline version. 'original' removes the dub.",
         input_model=DubVideoIn,
         output_model=DubOut,
+    ),
+    ToolDef(
+        name="add_headline_card",
+        description="Add a stylish headline card or static heading banner at the top or bottom "
+        "of the video (e.g. 'Software Dev is Dead', topic banner, hook title). Lasts across the "
+        "video unless duration_ms is specified.",
+        input_model=AddHeadlineCardIn,
+        output_model=OpOut,
+        needs_preview=True,
+    ),
+    ToolDef(
+        name="add_text_overlay",
+        description="Add a static text overlay or heading card at the top or bottom of the video "
+        "(e.g. 'Software Dev is Dead'). Alias for add_headline_card.",
+        input_model=AddTextOverlayIn,
+        output_model=OpOut,
+        needs_preview=True,
     ),
     ToolDef(
         name="remove_insert",

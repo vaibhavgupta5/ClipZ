@@ -13,6 +13,7 @@ from app.render.graph import (
     FilterGraph,
     OverlayAt,
     ReframeBlur,
+    ReframeSplitBottom,
     Scale,
     ScaleCrop,
     SetPts,
@@ -132,7 +133,7 @@ def build_video_filter(
     reframe: str | None = None,
     overlay_windows: list[tuple[Overlay, float, float]] | None = None,
     zoom_windows: list[tuple[Zoom, float]] | None = None,
-    after_cut: bool = False,
+    after_cut: bool = False,  # slice renders: style this slice's incoming cut
 ) -> tuple[str, str]:
     """Compile clips + zooms + overlays + captions to (filter_script, video_out).
 
@@ -143,16 +144,19 @@ def build_video_filter(
     reframe = reframe or tl.reframe  # the timeline decides unless a caller overrides
     graph = FilterGraph(inputs=["[0:v]"])
     chains: list[str] = []
+    cut_points = snap.transition_points(tl)
     for index, clip in enumerate(tl.video_clips):
         label = graph.add(Trim("[0:v]", start=clip.src_in, end=clip.src_out))
         if abs(clip.speed - 1.0) > 1e-9:
             label = graph.add(SetPts(_lbl(label), factor=1.0 / clip.speed))
-        if reframe == "blur":
+        if reframe in ("split_bottom", "split"):
+            label = graph.add(ReframeSplitBottom(_lbl(label), profile.width, profile.height))
+        elif reframe == "blur":
             label = graph.add(ReframeBlur(_lbl(label), profile.width, profile.height))
         else:  # center (face falls back here without tracks)
             label = graph.add(ScaleCrop(_lbl(label), profile.width, profile.height))
-        follows_cut = after_cut if index == 0 else True
-        if tl.transition != "none" and follows_cut:
+        styled = after_cut if index == 0 else index in cut_points
+        if tl.transition != "none" and styled:
             label = graph.add(
                 TransitionIn(_lbl(label), tl.transition, profile.width, profile.height)
             )
@@ -178,8 +182,10 @@ def build_video_filter(
     if overlay_windows is None:
         overlay_windows = []
         for overlay in tl.overlays:
-            at = _at(tl, overlay.anchor_word, overlay.offset_ms, "end")
-            overlay_windows.append((overlay, at, at + overlay.duration_ms / 1000.0))
+            try:
+                overlay_windows.append((overlay, *snap.overlay_window(tl, overlay)))
+            except OpError as exc:
+                raise RenderError("dangling_anchor", f"overlay anchor lost: {exc}") from None
     for overlay, at, end in overlay_windows:
         source = asset_labels.get(overlay.id) or asset_labels.get(overlay.asset)
         if source is None:
@@ -195,13 +201,22 @@ def build_video_filter(
             scaled = graph.add(Scale(over, pip_w, -2))
             faded = graph.add(FadeIO(_lbl(scaled), 0.12, 0.12, end - at, start=at))
             main = graph.add(OverlayAt(_lbl(main), _lbl(faded), "(W-w)/2", int(h * 0.16), at, end))
+        elif overlay.layout == "split_top" and overlay.type == "icon":
+            # logo tile: contained and centred in the top panel (never cropped)
+            side = int(h * 0.26)
+            scaled = graph.add(Scale(over, side, side))
+            faded = graph.add(FadeIO(_lbl(scaled), 0.1, 0.1, end - at, start=at))
+            y = (h // 2 - side) // 2
+            main = graph.add(OverlayAt(_lbl(main), _lbl(faded), "(W-w)/2", y, at, end))
         elif overlay.layout == "split_top":
-            scaled = graph.add(Scale(over, w, h // 2))
-            faded = graph.add(FadeIO(_lbl(scaled), 0.15, 0.15, end - at, start=at))
-            main = graph.add(OverlayAt(_lbl(main), _lbl(faded), 0, 0, at, end))
+            scaled = graph.add(ScaleCrop(over, w, h // 2))
+            main = graph.add(OverlayAt(_lbl(main), _lbl(scaled), 0, 0, at, end))
         elif overlay.layout == "lower_third_card":
             scaled = graph.add(Scale(over, int(w * 0.85), -2))
             main = graph.add(OverlayAt(_lbl(main), _lbl(scaled), "(W-w)/2", h - 360, at, end))
+        elif overlay.layout == "top_banner":
+            scaled = graph.add(Scale(over, int(w * 0.90), -2))
+            main = graph.add(OverlayAt(_lbl(main), _lbl(scaled), "(W-w)/2", int(h * 0.07), at, end))
         else:  # blur_bg_contain
             contained = graph.add(BlurBg(over, w, h))
             main = graph.add(OverlayAt(_lbl(main), _lbl(contained), 0, 0, at, end))

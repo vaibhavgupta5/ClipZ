@@ -14,7 +14,10 @@ from typing import Literal, Protocol
 
 from app.agent import coverage
 from app.agent.context import timeline_state
+from app.agent.critic import CriticReport, evaluate_preview
 from app.agent.router import route
+from app.inserts import keywords
+from app.providers.base import LLMProvider
 from app.providers.local import LibraryItem
 from app.providers.tools import (
     AgentMessage,
@@ -24,6 +27,7 @@ from app.providers.tools import (
     ToolTurnRequest,
     Usage,
 )
+from app.timeline.schema import Timeline
 from app.timeline.summary import summarize
 from app.tools import mvp
 from app.tools.executor import (
@@ -53,6 +57,7 @@ EventType = Literal[
     "preview_ready",
     "render_ready",
     "render_failed",
+    "critic_feedback",
     "error",
 ]
 
@@ -123,6 +128,8 @@ class DirectorResult:
     model: str = ""
     history: list[AgentMessage] = field(default_factory=list)
     coverage_followup: list[str] = field(default_factory=list)  # gaps the model was told about
+    autofixed: list[str] = field(default_factory=list)  # tools the Director applied itself
+    critic_reports: list[CriticReport] = field(default_factory=list)  # critic evaluations
 
 
 def _ms(started: float) -> int:
@@ -302,10 +309,15 @@ async def run_director(
     emit: Emit | None = None,
     max_iters: int = MAX_ITERS,
     generator: AudioGenerator | None = None,
+    enable_critic: bool = False,
+    max_critic_iters: int = 2,
+    critic_llm: LLMProvider | None = None,
 ) -> DirectorResult:
     """Handle one user chat message. Always terminates within ``max_iters`` model turns.
 
     Without a ``generator`` (no ElevenLabs key) the generated-audio tools are hidden.
+    When ``enable_critic=True``, reviews the timeline after edits and self-corrects up
+    to ``max_critic_iters``.
     """
     sink: Emit = emit or (lambda _e: None)
     result = DirectorResult(model=llm.model)
@@ -320,10 +332,20 @@ async def run_director(
         sink(Event("done", {"reply": result.reply}))
         return result
 
-    tl = (await ws.state()).timeline
-    msgs = [*(history or []), AgentMessage(role="user", text=f"{message}\n\n{timeline_state(tl)}")]
+    start_state = await ws.state()
+    tl = start_state.timeline
+    visuals = (
+        keywords.describe(keywords.find_cues(tl, start_state.catalog))
+        if start_state.catalog is not None
+        else ""
+    )
+    msgs = [
+        *(history or []),
+        AgentMessage(role="user", text=f"{message}\n\n{timeline_state(tl, visuals)}"),
+    ]
     tools = tool_specs(exclude=frozenset() if generator else ELEVENLABS_TOOLS)
     reviewed = False
+    critic_count = 0
     for i in range(max_iters):
         result.iterations = i + 1
         reply = await llm.complete_with_tools(
@@ -339,13 +361,13 @@ async def run_director(
             result.reply = reply.text or "I couldn't complete that request."
             break
         if not reply.calls:
-            gaps = (
-                []
-                if reviewed
-                else coverage.missing(
-                    message, {t for t, ok, _ in turn.log if ok}, (await ws.state()).timeline
-                )
+            gaps = coverage.missing(
+                message, {t for t, ok, _ in turn.log if ok}, (await ws.state()).timeline
             )
+            if gaps and reviewed:
+                # Still skipped after the follow-up: apply the safe defaults ourselves.
+                await _autofix(turn, gaps, message, tl)
+                gaps = []
             if gaps:
                 # One targeted follow-up for parts of the request the model skipped.
                 reviewed = True
@@ -357,6 +379,28 @@ async def run_director(
                 )
                 msgs.append(AgentMessage(role="user", text=note))
                 continue
+
+            if enable_critic and critic_count < max_critic_iters and len(result.versions) > 0:
+                current_tl = (await ws.state()).timeline
+                report = await evaluate_preview(critic_llm, current_tl, user_prompt=message)
+                result.critic_reports.append(report)
+                sink(Event("critic_feedback", report.model_dump(mode="json")))
+                if report.verdict == "needs_edits" and report.suggested_edits:
+                    critic_count += 1
+                    header = (
+                        f"Video Critic Review (Score: {report.overall_score}/10, "
+                        f"Verdict: {report.verdict}):\n"
+                    )
+                    critic_msg = (
+                        header
+                        + "\n".join(f"- Issue: {iss}" for iss in report.issues)
+                        + "\nSuggested Fixes:\n"
+                        + "\n".join(f"- {fix}" for fix in report.suggested_edits)
+                        + "\nPlease call the tools to apply these improvements now."
+                    )
+                    msgs.append(AgentMessage(role="user", text=critic_msg))
+                    continue
+
             result.reply = reply.text
             break
         results = [await turn.call(c) for c in reply.calls]
@@ -373,6 +417,17 @@ async def run_director(
     result.history = msgs
     sink(Event("done", {"reply": result.reply, "stopped": result.stopped}))
     return result
+
+
+async def _autofix(turn: _Turn, gaps: list[str], message: str, tl: Timeline) -> None:
+    """Deterministic defaults for requested items the model would not do (music, SFX...)."""
+    text = " ".join(w.text for w in tl.transcript.words)
+    catalog = (await turn.ws.state()).catalog
+    genres = catalog.genres() if catalog is not None else None
+    calls = coverage.autofix_calls(gaps, message, text, genres)
+    turn.result.autofixed = [name for name, _ in calls]
+    for n, (name, args) in enumerate(calls, start=1):
+        await turn.call(ToolCall(id=f"autofix{n}", name=name, args=args))
 
 
 def _grounded(reply: str, log: list[tuple[str, bool, str]]) -> str:

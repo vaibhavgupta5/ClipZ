@@ -1,4 +1,4 @@
-"""Ops tests: pure functions, word-ID anchors, snapped cuts, immutable inputs."""
+import uuid
 
 import pytest
 
@@ -22,7 +22,7 @@ def _transcript() -> Transcript:
 
 def _timeline() -> Timeline:
     return Timeline(
-        project_id="00000000-0000-0000-0000-000000000000",
+        project_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
         transcript=_transcript(),
         video_clips=[VideoClip(id="c1", asset="a1", src_in=0.0, src_out=3.0)],
         captions=CaptionConfig(),

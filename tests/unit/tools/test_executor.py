@@ -200,12 +200,16 @@ def test_every_registered_tool_has_a_handler(tmp_path: Path) -> None:
         "add_voiceover": {"text": "hello", "at_word": "w1"},
         "remove_voiceover": {"voiceover_id": "vo1"},
         "dub_video": {"target_language": "hi"},
+        "add_headline_card": {"text": "Headline Banner"},
+        "plan_edit": {"summary": "tech reel", "steps": ["captions"]},
+        "add_text_overlay": {"text": "Top Text"},
     }
     failing = {  # handled: an actionable failure is the right answer for these inputs
         "remove_insert": "unknown_overlay",
         "remove_voiceover": "unknown_voiceover",
         "generate_sfx": "generation_unavailable",  # nothing prepared (no ElevenLabs)
         "add_voiceover": "generation_unavailable",
+        "auto_visuals": "no_keywords",  # the tiny test library matches nothing said
     }
     vad = [SpeechRange(start=0.0, end=10.0)]
     state = ToolState(_long_timeline(), speech=vad, catalog=_catalog(tmp_path))
@@ -481,7 +485,8 @@ def test_set_transition_style() -> None:
 def test_auto_sfx_syncs_to_cuts_inserts_and_zooms(tmp_path: Path) -> None:
     from app.timeline import ops as tops
 
-    tl, _ = tops.delete_words(_long_timeline(), ["w9"])  # one cut at ~4.0 s
+    # one real cut at ~4.0 s (skips 0.9 s of source; breath trims get no whoosh)
+    tl, _ = tops.delete_words(_long_timeline(), ["w9", "w10"])
     state = ToolState(tl, catalog=_catalog(tmp_path))
     tl = _ok(
         execute(
@@ -497,3 +502,34 @@ def test_auto_sfx_syncs_to_cuts_inserts_and_zooms(tmp_path: Path) -> None:
     assert out.timeline is not None and all(h.id.startswith("auto") for h in out.timeline.sfx)
     again = _ok(execute("auto_sfx", {}, ToolState(out.timeline, catalog=state.catalog)))
     assert again.timeline is not None and len(again.timeline.sfx) == 3  # idempotent
+
+
+def test_add_headline_card(tmp_path: Path) -> None:
+    state = ToolState(_long_timeline(), catalog=_catalog(tmp_path))
+    out = _ok(
+        execute(
+            "add_headline_card",
+            {"text": "Software Dev is Dead", "position": "top", "style": "banner"},
+            state,
+        )
+    )
+    assert out.timeline is not None
+    assert len(out.timeline.overlays) == 1
+    overlay = out.timeline.overlays[0]
+    assert overlay.type == "headline_card"
+    assert overlay.layout == "top_banner"
+    assert overlay.anchor_word == state.timeline.transcript.words[0].id
+    assert overlay.duration_ms == pytest.approx(int(state.timeline.duration_s * 1000))
+    assert overlay.asset.startswith("headlines:")
+
+    # Test alias add_text_overlay
+    out_alias = _ok(
+        execute(
+            "add_text_overlay",
+            {"text": "Breaking News", "position": "bottom", "style": "alert"},
+            state,
+        )
+    )
+    assert out_alias.timeline is not None
+    assert len(out_alias.timeline.overlays) == 1
+    assert out_alias.timeline.overlays[0].layout == "lower_third_card"

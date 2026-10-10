@@ -173,6 +173,4 @@ async def _run_render(
         },
     )
     await _set_job(db, jid, "done", 1.0)
-    if profile.name == "final":
-        store.delete_tree(f"projects/{render.project_id}")
     return {"status": "done", "output_key": key, "media_s": timeline.duration_s}

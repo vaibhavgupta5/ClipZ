@@ -1,0 +1,2019 @@
+[
+  {
+    "id": "icons:openai",
+    "file": "openai.png",
+    "title": "OpenAI ChatGPT",
+    "tags": [
+      "brand",
+      "chatgpt",
+      "gpt",
+      "gpt4",
+      "gpt5",
+      "icon",
+      "logo",
+      "openai",
+      "sora"
+    ],
+    "aliases": [
+      "chatgpt",
+      "gpt",
+      "openai",
+      "gpt4",
+      "gpt5",
+      "sora"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/openai",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:claude",
+    "file": "claude.png",
+    "title": "Claude",
+    "tags": [
+      "brand",
+      "claude",
+      "icon",
+      "logo",
+      "opus",
+      "sonnet"
+    ],
+    "aliases": [
+      "claude",
+      "sonnet",
+      "opus"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/claude",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:anthropic",
+    "file": "anthropic.png",
+    "title": "Anthropic",
+    "tags": [
+      "anthropic",
+      "brand",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "anthropic"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/anthropic",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:gemini",
+    "file": "gemini.png",
+    "title": "Google Gemini",
+    "tags": [
+      "bard",
+      "brand",
+      "gemini",
+      "google",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "gemini",
+      "bard"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/gemini",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:deepseek",
+    "file": "deepseek.png",
+    "title": "DeepSeek",
+    "tags": [
+      "brand",
+      "deepseek",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "deepseek"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/deepseek",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:grok",
+    "file": "grok.png",
+    "title": "Grok",
+    "tags": [
+      "brand",
+      "grok",
+      "icon",
+      "logo",
+      "xai"
+    ],
+    "aliases": [
+      "grok",
+      "xai"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/grok",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:perplexity",
+    "file": "perplexity.png",
+    "title": "Perplexity",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "perplexity"
+    ],
+    "aliases": [
+      "perplexity"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/perplexity",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:mistral",
+    "file": "mistral.png",
+    "title": "Mistral AI",
+    "tags": [
+      "ai",
+      "brand",
+      "icon",
+      "logo",
+      "mistral"
+    ],
+    "aliases": [
+      "mistral"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/mistral",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:meta-ai",
+    "file": "meta-ai.png",
+    "title": "Meta Llama",
+    "tags": [
+      "brand",
+      "icon",
+      "llama",
+      "logo",
+      "meta"
+    ],
+    "aliases": [
+      "llama",
+      "meta"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/meta",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:copilot",
+    "file": "copilot.png",
+    "title": "GitHub Copilot",
+    "tags": [
+      "brand",
+      "copilot",
+      "github",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "copilot"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/githubcopilot",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:cursor",
+    "file": "cursor.png",
+    "title": "Cursor",
+    "tags": [
+      "brand",
+      "cursor",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "cursor"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/cursor",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:midjourney",
+    "file": "midjourney.png",
+    "title": "Midjourney",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "midjourney"
+    ],
+    "aliases": [
+      "midjourney"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/midjourney",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:huggingface",
+    "file": "huggingface.png",
+    "title": "Hugging Face",
+    "tags": [
+      "brand",
+      "face",
+      "hugging",
+      "huggingface",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "huggingface",
+      "hugging face"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/huggingface",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:ollama",
+    "file": "ollama.png",
+    "title": "Ollama",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "ollama"
+    ],
+    "aliases": [
+      "ollama"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/ollama",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:qwen",
+    "file": "qwen.png",
+    "title": "Qwen",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "qwen"
+    ],
+    "aliases": [
+      "qwen"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/qwen",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:microsoft",
+    "file": "microsoft.png",
+    "title": "Microsoft",
+    "tags": [
+      "azure",
+      "brand",
+      "icon",
+      "logo",
+      "microsoft",
+      "windows"
+    ],
+    "aliases": [
+      "microsoft",
+      "windows",
+      "azure"
+    ],
+    "source": "lobe-icons",
+    "source_url": "https://lobehub.com/icons/microsoft",
+    "license": "MIT",
+    "license_url": "https://github.com/lobehub/lobe-icons/blob/master/LICENSE",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:nvidia",
+    "file": "nvidia.png",
+    "title": "NVIDIA",
+    "tags": [
+      "brand",
+      "cuda",
+      "gpu",
+      "gpus",
+      "icon",
+      "logo",
+      "nvidia"
+    ],
+    "aliases": [
+      "nvidia",
+      "gpu",
+      "gpus",
+      "cuda"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=nvidia",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:google",
+    "file": "google.png",
+    "title": "Google",
+    "tags": [
+      "brand",
+      "google",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "google"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=google",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:apple",
+    "file": "apple.png",
+    "title": "Apple",
+    "tags": [
+      "apple",
+      "brand",
+      "icon",
+      "iphone",
+      "logo",
+      "mac",
+      "macbook"
+    ],
+    "aliases": [
+      "apple",
+      "iphone",
+      "mac",
+      "macbook"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=apple",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:android",
+    "file": "android.png",
+    "title": "Android",
+    "tags": [
+      "android",
+      "brand",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "android"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=android",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:meta",
+    "file": "meta.png",
+    "title": "Meta",
+    "tags": [
+      "brand",
+      "facebook",
+      "icon",
+      "logo",
+      "meta"
+    ],
+    "aliases": [
+      "facebook"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=meta",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:tesla",
+    "file": "tesla.png",
+    "title": "Tesla",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "tesla"
+    ],
+    "aliases": [
+      "tesla"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=tesla",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:python",
+    "file": "python.png",
+    "title": "Python",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "python"
+    ],
+    "aliases": [
+      "python"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=python",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:javascript",
+    "file": "javascript.png",
+    "title": "JavaScript",
+    "tags": [
+      "brand",
+      "icon",
+      "javascript",
+      "js",
+      "logo"
+    ],
+    "aliases": [
+      "javascript",
+      "js"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=javascript",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:typescript",
+    "file": "typescript.png",
+    "title": "TypeScript",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "ts",
+      "typescript"
+    ],
+    "aliases": [
+      "typescript",
+      "ts"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=typescript",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:react",
+    "file": "react.png",
+    "title": "React",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "react",
+      "reactjs"
+    ],
+    "aliases": [
+      "react",
+      "reactjs"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=react",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:nodejs",
+    "file": "nodejs.png",
+    "title": "Node.js",
+    "tags": [
+      "brand",
+      "icon",
+      "js",
+      "logo",
+      "node",
+      "nodejs"
+    ],
+    "aliases": [
+      "node",
+      "nodejs"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=nodedotjs",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:nextjs",
+    "file": "nextjs.png",
+    "title": "Next.js",
+    "tags": [
+      "brand",
+      "icon",
+      "js",
+      "logo",
+      "next",
+      "nextjs"
+    ],
+    "aliases": [
+      "nextjs"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=nextdotjs",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:rust",
+    "file": "rust.png",
+    "title": "Rust",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "rust"
+    ],
+    "aliases": [
+      "rust"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=rust",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:go",
+    "file": "go.png",
+    "title": "Go",
+    "tags": [
+      "brand",
+      "go",
+      "golang",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "golang"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=go",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:java",
+    "file": "java.png",
+    "title": "Java",
+    "tags": [
+      "brand",
+      "icon",
+      "java",
+      "logo"
+    ],
+    "aliases": [
+      "java"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=openjdk",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:cplusplus",
+    "file": "cplusplus.png",
+    "title": "C++",
+    "tags": [
+      "brand",
+      "c++",
+      "cpp",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "cpp",
+      "c++"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=cplusplus",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:swift",
+    "file": "swift.png",
+    "title": "Swift",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "swift"
+    ],
+    "aliases": [
+      "swift"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=swift",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:kotlin",
+    "file": "kotlin.png",
+    "title": "Kotlin",
+    "tags": [
+      "brand",
+      "icon",
+      "kotlin",
+      "logo"
+    ],
+    "aliases": [
+      "kotlin"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=kotlin",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:flutter",
+    "file": "flutter.png",
+    "title": "Flutter",
+    "tags": [
+      "brand",
+      "flutter",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "flutter"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=flutter",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:html5",
+    "file": "html5.png",
+    "title": "HTML5",
+    "tags": [
+      "brand",
+      "html",
+      "html5",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "html"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=html5",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:tailwind",
+    "file": "tailwind.png",
+    "title": "Tailwind CSS",
+    "tags": [
+      "brand",
+      "css",
+      "icon",
+      "logo",
+      "tailwind"
+    ],
+    "aliases": [
+      "tailwind"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=tailwindcss",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:docker",
+    "file": "docker.png",
+    "title": "Docker",
+    "tags": [
+      "brand",
+      "container",
+      "containers",
+      "docker",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "docker",
+      "container",
+      "containers"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=docker",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:kubernetes",
+    "file": "kubernetes.png",
+    "title": "Kubernetes",
+    "tags": [
+      "brand",
+      "icon",
+      "k8s",
+      "kubernetes",
+      "logo"
+    ],
+    "aliases": [
+      "kubernetes",
+      "k8s"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=kubernetes",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:linux",
+    "file": "linux.png",
+    "title": "Linux",
+    "tags": [
+      "brand",
+      "icon",
+      "linux",
+      "logo"
+    ],
+    "aliases": [
+      "linux"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=linux",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:ubuntu",
+    "file": "ubuntu.png",
+    "title": "Ubuntu",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "ubuntu"
+    ],
+    "aliases": [
+      "ubuntu"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=ubuntu",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:git",
+    "file": "git.png",
+    "title": "Git",
+    "tags": [
+      "brand",
+      "git",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "git"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=git",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:github",
+    "file": "github.png",
+    "title": "GitHub",
+    "tags": [
+      "brand",
+      "github",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "github"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=github",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:gitlab",
+    "file": "gitlab.png",
+    "title": "GitLab",
+    "tags": [
+      "brand",
+      "gitlab",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "gitlab"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=gitlab",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:stackoverflow",
+    "file": "stackoverflow.png",
+    "title": "Stack Overflow",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "overflow",
+      "stack",
+      "stackoverflow"
+    ],
+    "aliases": [
+      "stackoverflow"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=stackoverflow",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:leetcode",
+    "file": "leetcode.png",
+    "title": "LeetCode",
+    "tags": [
+      "brand",
+      "dsa",
+      "icon",
+      "leetcode",
+      "logo"
+    ],
+    "aliases": [
+      "leetcode",
+      "dsa"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=leetcode",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:vim",
+    "file": "vim.png",
+    "title": "Vim",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "vim"
+    ],
+    "aliases": [
+      "vim"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=vim",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:neovim",
+    "file": "neovim.png",
+    "title": "Neovim",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "neovim"
+    ],
+    "aliases": [
+      "neovim"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=neovim",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:postgresql",
+    "file": "postgresql.png",
+    "title": "PostgreSQL",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "postgres",
+      "postgresql",
+      "sql"
+    ],
+    "aliases": [
+      "postgres",
+      "postgresql",
+      "sql"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=postgresql",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:mongodb",
+    "file": "mongodb.png",
+    "title": "MongoDB",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "mongo",
+      "mongodb"
+    ],
+    "aliases": [
+      "mongodb",
+      "mongo"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=mongodb",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:redis",
+    "file": "redis.png",
+    "title": "Redis",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "redis"
+    ],
+    "aliases": [
+      "redis"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=redis",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:supabase",
+    "file": "supabase.png",
+    "title": "Supabase",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "supabase"
+    ],
+    "aliases": [
+      "supabase"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=supabase",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:firebase",
+    "file": "firebase.png",
+    "title": "Firebase",
+    "tags": [
+      "brand",
+      "firebase",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "firebase"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=firebase",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:googlecloud",
+    "file": "googlecloud.png",
+    "title": "Google Cloud",
+    "tags": [
+      "brand",
+      "cloud",
+      "gcp",
+      "google",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "gcp"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=googlecloud",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:cloudflare",
+    "file": "cloudflare.png",
+    "title": "Cloudflare",
+    "tags": [
+      "brand",
+      "cloudflare",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "cloudflare"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=cloudflare",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:vercel",
+    "file": "vercel.png",
+    "title": "Vercel",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "vercel"
+    ],
+    "aliases": [
+      "vercel"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=vercel",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:digitalocean",
+    "file": "digitalocean.png",
+    "title": "DigitalOcean",
+    "tags": [
+      "brand",
+      "digitalocean",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "digitalocean"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=digitalocean",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:snowflake",
+    "file": "snowflake.png",
+    "title": "Snowflake",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "snowflake"
+    ],
+    "aliases": [
+      "snowflake"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=snowflake",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:tensorflow",
+    "file": "tensorflow.png",
+    "title": "TensorFlow",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "tensorflow"
+    ],
+    "aliases": [
+      "tensorflow"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=tensorflow",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:pytorch",
+    "file": "pytorch.png",
+    "title": "PyTorch",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "pytorch",
+      "torch"
+    ],
+    "aliases": [
+      "pytorch",
+      "torch"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=pytorch",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:langchain",
+    "file": "langchain.png",
+    "title": "LangChain",
+    "tags": [
+      "brand",
+      "icon",
+      "langchain",
+      "logo"
+    ],
+    "aliases": [
+      "langchain"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=langchain",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:fastapi",
+    "file": "fastapi.png",
+    "title": "FastAPI",
+    "tags": [
+      "brand",
+      "fastapi",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "fastapi"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=fastapi",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:django",
+    "file": "django.png",
+    "title": "Django",
+    "tags": [
+      "brand",
+      "django",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "django"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=django",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:figma",
+    "file": "figma.png",
+    "title": "Figma",
+    "tags": [
+      "brand",
+      "figma",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "figma"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=figma",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:notion",
+    "file": "notion.png",
+    "title": "Notion",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "notion"
+    ],
+    "aliases": [
+      "notion"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=notion",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:discord",
+    "file": "discord.png",
+    "title": "Discord",
+    "tags": [
+      "brand",
+      "discord",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "discord"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=discord",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:youtube",
+    "file": "youtube.png",
+    "title": "YouTube",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "youtube"
+    ],
+    "aliases": [
+      "youtube"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=youtube",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:instagram",
+    "file": "instagram.png",
+    "title": "Instagram",
+    "tags": [
+      "brand",
+      "icon",
+      "instagram",
+      "logo",
+      "reels"
+    ],
+    "aliases": [
+      "instagram",
+      "reels"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=instagram",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:tiktok",
+    "file": "tiktok.png",
+    "title": "TikTok",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "tiktok"
+    ],
+    "aliases": [
+      "tiktok"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=tiktok",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:x",
+    "file": "x.png",
+    "title": "X (Twitter)",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "tweet",
+      "twitter",
+      "x"
+    ],
+    "aliases": [
+      "twitter",
+      "tweet"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=x",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:reddit",
+    "file": "reddit.png",
+    "title": "Reddit",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "reddit"
+    ],
+    "aliases": [
+      "reddit"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=reddit",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:whatsapp",
+    "file": "whatsapp.png",
+    "title": "WhatsApp",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "whatsapp"
+    ],
+    "aliases": [
+      "whatsapp"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=whatsapp",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:spotify",
+    "file": "spotify.png",
+    "title": "Spotify",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "spotify"
+    ],
+    "aliases": [
+      "spotify"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=spotify",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:netflix",
+    "file": "netflix.png",
+    "title": "Netflix",
+    "tags": [
+      "brand",
+      "icon",
+      "logo",
+      "netflix"
+    ],
+    "aliases": [
+      "netflix"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=netflix",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:bitcoin",
+    "file": "bitcoin.png",
+    "title": "Bitcoin",
+    "tags": [
+      "bitcoin",
+      "brand",
+      "btc",
+      "crypto",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "bitcoin",
+      "btc",
+      "crypto"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=bitcoin",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:ethereum",
+    "file": "ethereum.png",
+    "title": "Ethereum",
+    "tags": [
+      "brand",
+      "eth",
+      "ethereum",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "ethereum",
+      "eth"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=ethereum",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  },
+  {
+    "id": "icons:gmail",
+    "file": "gmail.png",
+    "title": "Gmail",
+    "tags": [
+      "brand",
+      "email",
+      "gmail",
+      "icon",
+      "logo"
+    ],
+    "aliases": [
+      "gmail",
+      "email"
+    ],
+    "source": "simple-icons",
+    "source_url": "https://simpleicons.org/?q=gmail",
+    "license": "CC0-1.0",
+    "license_url": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "attribution_required": false,
+    "attribution_text": "",
+    "commercial_use": false,
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "category": "brand"
+  }
+]

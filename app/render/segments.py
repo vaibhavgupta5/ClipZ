@@ -49,9 +49,7 @@ def split_segments(tl: Timeline) -> list[Segment]:
         overlays: list[tuple[Overlay, float, float]] = []
         for overlay in tl.overlays:
             try:
-                at = (
-                    snap.output_time_of(tl, overlay.anchor_word, "end") + overlay.offset_ms / 1000.0
-                )
+                at, _ = snap.overlay_window(tl, overlay)
             except OpError:
                 continue
             o_end = at + overlay.duration_ms / 1000.0

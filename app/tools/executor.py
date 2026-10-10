@@ -12,6 +12,7 @@ from enum import StrEnum
 from pydantic import BaseModel, ValidationError
 
 from app.analysis.models import FillerHit, SpeechRange
+from app.inserts.keywords import Cue, find_cues, plan_cues
 from app.providers.local import AssetCatalog, LibraryItem
 from app.timeline import ops, snap
 from app.timeline.errors import OpError, ToolError
@@ -20,6 +21,7 @@ from app.timeline.schema import (
     AudioEffect,
     CaptionConfig,
     Diff,
+    Layout,
     MusicBed,
     Overlay,
     SfxHit,
@@ -232,8 +234,14 @@ def _dispatch(tool: ToolDef, p: BaseModel, state: ToolState) -> ToolOutcome:
             return _insert_asset(tool, p, state)
         case mvp.InsertMemeIn():
             return _insert_meme(tool, p, state)
+        case mvp.AddHeadlineCardIn() | mvp.AddTextOverlayIn():
+            return _add_headline_card(tool, p, state)
         case mvp.AddInsertsIn():
             return _add_inserts(tool, p, state)
+        case mvp.PlanEditIn():
+            return _plan_edit(tool, p, state)
+        case mvp.AutoVisualsIn():
+            return _auto_visuals(tool, p, state)
         case mvp.AddZoomsIn():
             return _add_zooms(tool, p, state)
         case mvp.SetTransitionIn():
@@ -360,9 +368,30 @@ HOOK_S = 1.0  # nothing covers the speaker before the hook lands
 MIN_GAP_S = 2.0  # between inserts (start to start, and never overlapping)
 SECONDS_PER_INSERT = 3.0  # density cap: at most one insert per 3 s of video
 OFFSET_MS = 80  # appear just after the word ends
-DURATION_MS = {"gif": (1100, 800, 1600), "image": (1800, 1200, 2500), "meme": (2200, 1500, 3000)}
-DEFAULT_LAYOUT = {"gif": "pip_pop", "image": "blur_bg_contain", "meme": "blur_bg_contain"}
-TYPE = {"gif": "gif", "image": "image", "meme": "meme"}
+# (default, min, max) on-screen ms. Short on purpose: a visual should land with its word
+# and get out of the way; nothing stays up longer than a viewer needs to read it.
+DURATION_MS = {
+    "icon": (1200, 700, 1500),
+    "gif": (1200, 800, 1600),
+    "image": (1700, 1000, 2200),
+    "meme": (2000, 1200, 2500),
+    "video": (2600, 1500, 3500),
+}
+DEFAULT_LAYOUT: dict[str, Layout] = {
+    "icon": "pip_pop",
+    "gif": "pip_pop",
+    "image": "blur_bg_contain",
+    "video": "blur_bg_contain",
+    "meme": "blur_bg_contain",
+}
+TYPE = {"icon": "icon", "gif": "gif", "image": "image", "video": "video", "meme": "meme"}
+SPLIT_REFRAMES = frozenset({"split_bottom", "split"})
+SPLIT_SECONDS_PER_INSERT = 1.2  # split screen: the top panel is a fast visual feed
+CARD_TYPES = frozenset({"headline_card", "stat_card"})  # banners don't block inserts
+
+
+def _is_split(tl: Timeline, layout: str | None) -> bool:
+    return layout == "split_top" or (layout is None and tl.reframe in SPLIT_REFRAMES)
 
 
 def _catalog(state: ToolState) -> AssetCatalog:
@@ -387,15 +416,33 @@ def _search_assets(tool: ToolDef, p: mvp.SearchAssetsIn, state: ToolState) -> To
 
 
 def _windows(tl: Timeline) -> list[tuple[float, float, str]]:
+    """Output windows of the inserts (cards and banners excluded)."""
     out = []
     for o in tl.overlays:
-        at = snap.output_time_of(tl, o.anchor_word, "end") + o.offset_ms / 1000.0
-        out.append((at, at + o.duration_ms / 1000.0, o.id))
+        if o.type in CARD_TYPES or o.layout == "top_banner":
+            continue
+        try:
+            start, end = snap.overlay_window(tl, o)
+        except OpError:
+            continue
+        out.append((start, end, o.id))
     return sorted(out)
 
 
-def _place(tl: Timeline, kind: str, at_word: str, duration_ms: int | None) -> tuple[int, float]:
-    """Validate a new insert window; returns (duration_ms, start_s). Errors teach the model."""
+def _place(
+    tl: Timeline,
+    kind: str,
+    at_word: str,
+    duration_ms: int | None,
+    layout: str | None = None,
+) -> tuple[int, float]:
+    """Validate a new insert window; returns (duration_ms, start_s). Errors teach the model.
+
+    Normal reels: after the hook, >= 2 s apart, <= 1 per 3 s. Split screen (top panel):
+    visuals may run back to back as the words are said, <= 1 per 1.2 s. Durations are
+    always capped per kind, so nothing lingers.
+    """
+    split = _is_split(tl, layout)
     default, lo, hi = DURATION_MS[kind]
     dur = min(hi, max(lo, duration_ms or default))
     if at_word not in tl.transcript.word_index:
@@ -403,41 +450,71 @@ def _place(tl: Timeline, kind: str, at_word: str, duration_ms: int | None) -> tu
             "unknown_word", f"word {at_word} does not exist", "use a word ID from the transcript"
         )
     try:
-        start = snap.output_time_of(tl, at_word, "end") + OFFSET_MS / 1000.0
+        where = "start" if split else "end"
+        offset = 0.0 if split else OFFSET_MS / 1000.0
+        start = max(0.0, snap.output_time_of(tl, at_word, where) + offset)
     except OpError:
         raise OpError(
             "word_cut",
             f"word {at_word} was cut from the video",
             "anchor on a word that is still in the timeline",
         ) from None
-    end = start + dur / 1000.0
-    if start < HOOK_S:
+    if not split and start < HOOK_S:
         raise OpError(
             "too_early",
             f"{at_word} ends at {start:.2f}s, inside the hook",
             f"anchor on a word ending after {HOOK_S:.0f}s",
         )
-    if end > tl.duration_s:
+    room_ms = int((tl.duration_s - start) * 1000)
+    if room_ms < lo:
         raise OpError(
             "past_end",
-            f"insert would run to {end:.2f}s but the video is {tl.duration_s:.2f}s",
-            "anchor on an earlier word or shorten duration_ms",
+            f"only {room_ms} ms left after {at_word}",
+            "anchor on an earlier word",
         )
+    dur = min(dur, room_ms)
+    end = start + dur / 1000.0
     windows = _windows(tl)
-    if len(windows) + 1 > max(1, int(tl.duration_s / SECONDS_PER_INSERT)):
+    per_s = SPLIT_SECONDS_PER_INSERT if split else SECONDS_PER_INSERT
+    if len(windows) + 1 > max(1, int(tl.duration_s / per_s)):
         raise OpError(
             "too_many_inserts",
             f"{len(windows)} inserts already in {tl.duration_s:.0f}s",
             "remove one first; quality beats quantity",
         )
     for w_start, w_end, wid in windows:
-        if start < w_end + EPS and w_start < end + EPS or abs(start - w_start) < MIN_GAP_S:
+        if split and w_start < start < w_end:
+            # the earlier panel visual simply hands over: it is trimmed by the caller
+            continue
+        if start < w_end - EPS and w_start < end - EPS:
+            raise OpError(
+                "too_close",
+                f"{wid} occupies {w_start:.2f}-{w_end:.2f}s",
+                "pick a word outside that window",
+            )
+        if not split and abs(start - w_start) < MIN_GAP_S:
             raise OpError(
                 "too_close",
                 f"{wid} occupies {w_start:.2f}-{w_end:.2f}s",
                 f"keep inserts >= {MIN_GAP_S:.0f}s apart; pick a word further away",
             )
     return dur, start
+
+
+def _hand_over(tl: Timeline, start: float) -> Timeline:
+    """Split screen: a panel visual still showing when the next one starts ends there."""
+    out = []
+    for o in tl.overlays:
+        if o.layout == "split_top" and o.type not in CARD_TYPES:
+            try:
+                o_start, o_end = snap.overlay_window(tl, o)
+            except OpError:
+                out.append(o)
+                continue
+            if o_start < start < o_end:
+                o = o.model_copy(update={"duration_ms": max(300, int((start - o_start) * 1000))})
+        out.append(o)
+    return tl.model_copy(update={"overlays": out})
 
 
 def _next_id(tl: Timeline) -> str:
@@ -457,14 +534,16 @@ def _overlay(
     dur: int,
     layout: str | None,
 ) -> Overlay:
+    split = _is_split(tl, layout)
+    chosen: Layout = "split_top" if split else (layout or DEFAULT_LAYOUT[kind])  # type: ignore[assignment]
     return Overlay(
         id=_next_id(tl),
         type=TYPE[kind],  # type: ignore[arg-type]
         asset=asset_id,
         anchor_word=at_word,
-        offset_ms=OFFSET_MS,
+        offset_ms=0 if split else OFFSET_MS,
         duration_ms=dur,
-        layout=layout or DEFAULT_LAYOUT[kind],  # type: ignore[arg-type]
+        layout=chosen,
         license=item.license,
         attribution_required=item.attribution_required,
         attribution_text=item.attribution_text,
@@ -487,9 +566,12 @@ def _insert_asset(tool: ToolDef, p: mvp.InsertAssetIn, state: ToolState) -> Tool
             "meme templates need captions",
             "call insert_meme with top_text/bottom_text",
         )
-    dur, _ = _place(state.timeline, kind, p.at_word, p.duration_ms)
-    overlay = _overlay(state.timeline, kind, item.id, item, p.at_word, dur, p.layout)
-    return _edit(tool, ops.add_overlay(state.timeline, overlay))
+    dur, start = _place(state.timeline, kind, p.at_word, p.duration_ms, p.layout)
+    tl = (
+        _hand_over(state.timeline, start) if _is_split(state.timeline, p.layout) else state.timeline
+    )
+    overlay = _overlay(tl, kind, item.id, item, p.at_word, dur, p.layout)
+    return _edit(tool, ops.add_overlay(tl, overlay))
 
 
 def _insert_meme(tool: ToolDef, p: mvp.InsertMemeIn, state: ToolState) -> ToolOutcome:
@@ -507,10 +589,64 @@ def _insert_meme(tool: ToolDef, p: mvp.InsertMemeIn, state: ToolState) -> ToolOu
             f"{p.template_id} is not a meme template",
             "use an id from search_assets(kind='meme')",
         )
-    dur, _ = _place(state.timeline, "meme", p.at_word, p.duration_ms)
+    dur, start = _place(state.timeline, "meme", p.at_word, p.duration_ms, p.layout)
+    tl = (
+        _hand_over(state.timeline, start) if _is_split(state.timeline, p.layout) else state.timeline
+    )
     rendered_id, item = catalog.render_meme(p.template_id, p.top_text, p.bottom_text)
-    overlay = _overlay(state.timeline, "meme", rendered_id, item, p.at_word, dur, None)
-    return _edit(tool, ops.add_overlay(state.timeline, overlay))
+    overlay = _overlay(tl, "meme", rendered_id, item, p.at_word, dur, p.layout)
+    return _edit(tool, ops.add_overlay(tl, overlay))
+
+
+def _add_headline_card(tool: ToolDef, p: mvp.AddHeadlineCardIn, state: ToolState) -> ToolOutcome:
+    tl = state.timeline
+    if not tl.transcript.words:
+        raise OpError(
+            "no_words", "cannot anchor headline on empty transcript", "add video with speech"
+        )
+    at_word = p.at_word or tl.transcript.words[0].id
+    if at_word not in tl.transcript.word_index:
+        raise OpError(
+            "unknown_word", f"word {at_word} does not exist", "use a word ID from the transcript"
+        )
+    try:
+        start_s = snap.output_time_of(tl, at_word, "start")
+    except OpError:
+        raise OpError(
+            "word_cut",
+            f"word {at_word} was cut from the video",
+            "anchor on a word that is still in the timeline",
+        ) from None
+    max_dur_ms = max(300, int((tl.duration_s - start_s) * 1000))
+    if p.duration_ms and p.duration_ms > 0:
+        dur = min(max_dur_ms, max(300, p.duration_ms))
+    else:
+        dur = max_dur_ms
+
+    catalog = _catalog(state)
+    rendered_id, item = catalog.render_headline(
+        p.text, style=p.style, bg_color=p.bg_color, text_color=p.text_color
+    )
+    layouts: dict[str, Layout] = {
+        "top": "top_banner",
+        "bottom": "lower_third_card",
+        "center": "pip_pop",
+    }
+    layout = layouts[p.position]
+    overlay = Overlay(
+        id=_next_id(tl),
+        type="headline_card",
+        asset=rendered_id,
+        anchor_word=at_word,
+        offset_ms=0,
+        duration_ms=dur,
+        layout=layout,
+        license=item.license,
+        attribution_required=item.attribution_required,
+        attribution_text=item.attribution_text,
+        commercial_use=item.commercial_use,
+    )
+    return _edit(tool, ops.add_overlay(tl, overlay))
 
 
 ZOOM_GAP_S = 2.5  # between punch-ins
@@ -562,7 +698,11 @@ def _add_zooms(tool: ToolDef, p: mvp.AddZoomsIn, state: ToolState) -> ToolOutcom
     )
 
 
-INSERT_SFX = {"gif": "pop", "image": "swoosh", "meme": "record_scratch"}
+SFX_CUT_GAP_S = 1.5  # whoosh on real cuts at most every 1.5 s
+SFX_MIN_SPACING_S = 0.35
+INSERT_SFX = {
+    "icon": "pop", "gif": "pop", "image": "swoosh", "video": "whoosh", "meme": "record_scratch",
+}  # fmt: skip
 # Crisp single hits: library takes can be long or repeat (e.g. a 4.6 s run of clicks).
 SFX_MAX_MS = {
     "click": 250, "pop": 500, "camera": 500, "notification": 700, "ding": 900,
@@ -632,10 +772,11 @@ def _auto_sfx(tool: ToolDef, p: mvp.AutoSfxIn, state: ToolState) -> ToolOutcome:
     )
     plan: list[tuple[str, float, float]] = []  # (type, output time, gain)
     if p.on_cuts:
-        t = 0.0
+        starts = [0.0]
         for clip in tl.video_clips[:-1]:
-            t += clip.output_len
-            plan.append(("whoosh", t - 0.15, p.gain_db))  # lead into the cut
+            starts.append(starts[-1] + clip.output_len)
+        for i in sorted(snap.real_cuts(tl, SFX_CUT_GAP_S)):  # not every breath trim
+            plan.append(("whoosh", starts[i] - 0.15, p.gain_db))  # lead into the cut
     if p.on_inserts:
         for at, _end, oid in _windows(tl):
             kind = _overlay_by_id(tl, oid).type
@@ -646,9 +787,18 @@ def _auto_sfx(tool: ToolDef, p: mvp.AutoSfxIn, state: ToolState) -> ToolOutcome:
                 plan.append(("click", snap.output_time_of(tl, z.anchor_word), p.gain_db - 6))
             except OpError:
                 continue
+    if not plan:
+        # Nothing to sync to yet: accent the strongest spoken keywords instead.
+        cues = plan_cues(find_cues(tl, catalog), tl.duration_s, gap_s=4.0, per_s=8.0, hook_s=1.0)
+        plan += [("pop" if c.kind == "icon" else "ding", c.start_s, p.gain_db) for c in cues]
+        plan.append(("whoosh", 0.1, p.gain_db - 2))  # soft opener on the hook
     hits: list[SfxHit] = []
     placed: list[str] = []
+    last_at = -1.0
     for n, (sfx_type, at, gain) in enumerate(sorted(plan, key=lambda x: x[1])):
+        if at - last_at < SFX_MIN_SPACING_S:
+            continue  # never stack two hits on one moment
+        last_at = at
         anchor = _word_ending_before(tl, at + 0.5)
         if anchor is None:
             continue
@@ -677,31 +827,62 @@ def _library_id(asset: str) -> str:
     return ":".join(asset.split(":")[:2])
 
 
+def _cue_for(tl: Timeline, cues: list[Cue], kind: str, at_word: str, used: set[str]) -> Cue | None:
+    """Best unused cue of ``kind`` spoken at (or within two words of) ``at_word``."""
+    order = [w.id for w in tl.transcript.words]
+    pos = {wid: i for i, wid in enumerate(order)}
+    target = pos.get(at_word, -99)
+    near = [
+        c
+        for c in cues
+        if c.kind == kind
+        and c.asset_id not in used
+        and pos.get(c.first, -999) - 2 <= target <= pos.get(c.word, -999) + 2
+    ]
+    return max(near, key=lambda c: c.score, default=None)
+
+
 def _add_inserts(tool: ToolDef, p: mvp.AddInsertsIn, state: ToolState) -> ToolOutcome:
-    """Match + place each planned insert on the evolving timeline; skip with reasons."""
+    """Match + place each planned insert on the evolving timeline; skip with reasons.
+
+    An item without a query uses the keyword engine: the visual that best matches what is
+    said at that word. A query that matches nothing relevant is skipped, never forced.
+    """
     catalog = _catalog(state)
     tl = state.timeline
+    cues = find_cues(tl, catalog) if any(not i.query.strip() for i in p.items) else []
     placed: list[dict[str, str]] = []
     skipped: list[dict[str, str]] = []
     for item in p.items:
         # Never show the same asset twice in one reel: take the next-best unused match.
         used = {_library_id(o.asset) for o in tl.overlays}
-        hits = [h for h in catalog.search(item.kind, item.query, 5) if h.id not in used][:1]
-        if not hits:
-            reason = f"no unused {item.kind} matches '{item.query}'"
-            skipped.append({"at_word": item.at_word, "reason": reason})
+        lib_item: LibraryItem | None = None
+        kind = item.kind
+        if item.query.strip():
+            hits = [h for h in catalog.search(kind, item.query, 5) if h.id not in used]
+            lib_item = hits[0] if hits else None
+        else:
+            cue = _cue_for(tl, cues, kind, item.at_word, used)
+            found = catalog.get(cue.asset_id) if cue else None
+            lib_item = found[1] if found else None
+        if lib_item is None:
+            what = f"'{item.query}'" if item.query.strip() else f"what is said at {item.at_word}"
+            skipped.append({"at_word": item.at_word, "reason": f"no unused {kind} matches {what}"})
             continue
+        layout = item.layout or p.default_layout
         try:
-            dur, _ = _place(tl, item.kind, item.at_word, None)
-            if item.kind == "meme":
+            dur, start = _place(tl, kind, item.at_word, item.duration_ms, layout)
+            if kind == "meme":
                 if not (item.top_text.strip() or item.bottom_text.strip()):
                     raise OpError("empty_meme", "meme without text", "add top_text/bottom_text")
                 asset_id, lib_item = catalog.render_meme(
-                    hits[0].id, item.top_text, item.bottom_text
+                    lib_item.id, item.top_text, item.bottom_text
                 )
             else:
-                asset_id, lib_item = hits[0].id, hits[0]
-            overlay = _overlay(tl, item.kind, asset_id, lib_item, item.at_word, dur, None)
+                asset_id = lib_item.id
+            if _is_split(tl, layout):
+                tl = _hand_over(tl, start)
+            overlay = _overlay(tl, kind, asset_id, lib_item, item.at_word, dur, layout)
             tl, _ = ops.add_overlay(tl, overlay)
         except OpError as exc:
             skipped.append({"at_word": item.at_word, "reason": exc.code})
@@ -710,7 +891,7 @@ def _add_inserts(tool: ToolDef, p: mvp.AddInsertsIn, state: ToolState) -> ToolOu
             {
                 "insert_id": overlay.id,
                 "at_word": item.at_word,
-                "kind": item.kind,
+                "kind": kind,
                 "title": lib_item.title,
             }
         )
@@ -721,6 +902,79 @@ def _add_inserts(tool: ToolDef, p: mvp.AddInsertsIn, state: ToolState) -> ToolOu
             fields={"placed": [], "skipped": skipped, "summary": "nothing placed"},
         )
     diff = Diff(op="add_inserts", details={"placed": ",".join(x["insert_id"] for x in placed)})
+    return ToolOutcome(
+        tool, Effect.NEW_VERSION, tl, diff, {"op": tool.name, "placed": placed, "skipped": skipped}
+    )
+
+
+def _plan_edit(tool: ToolDef, p: mvp.PlanEditIn, state: ToolState) -> ToolOutcome:
+    """Accept the plan; flag moments whose word is unknown or already cut away."""
+    tl = state.timeline
+    warnings = []
+    for m in p.moments:
+        if m.at_word not in tl.transcript.word_index:
+            warnings.append(f"{m.at_word} does not exist; pick an ID from the transcript")
+            continue
+        try:
+            snap.output_time_of(tl, m.at_word, "end")
+        except OpError:
+            warnings.append(f"{m.at_word} was cut from the video; pick a nearby word")
+    return ToolOutcome(tool, Effect.NONE, fields={"accepted": True, "warnings": warnings})
+
+
+DENSITY = {"light": 5.0, "normal": 3.0, "dense": 2.0}  # seconds per visual (normal reels)
+
+
+def _auto_visuals(tool: ToolDef, p: mvp.AutoVisualsIn, state: ToolState) -> ToolOutcome:
+    """Show the matching visual whenever a strong keyword is said (keyword engine)."""
+    catalog = _catalog(state)
+    tl = state.timeline
+    split = _is_split(tl, p.layout)
+    cues = find_cues(tl, catalog, tuple(p.kinds))
+    if not cues:
+        raise OpError(
+            "no_keywords",
+            "nothing said matches the visual libraries",
+            "use add_inserts with explicit queries, or skip visuals",
+        )
+    busy = [(s, e) for s, e, _ in _windows(tl)]
+    plan = plan_cues(
+        cues,
+        tl.duration_s,
+        gap_s=SPLIT_SECONDS_PER_INSERT if split else MIN_GAP_S,
+        per_s=SPLIT_SECONDS_PER_INSERT * 1.5 if split else DENSITY[p.density],
+        hook_s=0.0 if split else HOOK_S,
+        used={_library_id(o.asset) for o in tl.overlays},
+        busy=busy,
+    )
+    placed: list[dict[str, str]] = []
+    skipped: list[dict[str, str]] = []
+    for cue in plan:
+        found = catalog.get(cue.asset_id)
+        if found is None:
+            continue
+        _, item = found
+        try:
+            dur, start = _place(tl, cue.kind, cue.first if split else cue.word, None, p.layout)
+            if split:
+                tl = _hand_over(tl, start)
+            anchor = cue.first if split else cue.word
+            tl, _ = ops.add_overlay(
+                tl, _overlay(tl, cue.kind, item.id, item, anchor, dur, p.layout)
+            )
+        except OpError as exc:
+            skipped.append({"at_word": cue.word, "reason": exc.code})
+            continue
+        placed.append(
+            {"at_word": cue.word, "said": cue.phrase, "kind": cue.kind, "title": item.title}
+        )
+    if not placed:
+        return ToolOutcome(
+            tool,
+            Effect.NONE,
+            fields={"placed": [], "skipped": skipped, "summary": "nothing placed"},
+        )
+    diff = Diff(op="auto_visuals", details={"placed": str(len(placed))})
     return ToolOutcome(
         tool, Effect.NEW_VERSION, tl, diff, {"op": tool.name, "placed": placed, "skipped": skipped}
     )

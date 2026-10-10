@@ -264,3 +264,56 @@ async def test_dub_video_enqueues_a_dub_job() -> None:
     assert ws.dub_calls == ["hi"]
     assert any(e.type == "dub_queued" for e in events)
     assert ws.render_calls == []  # nothing changed yet; the job commits a version later
+
+
+async def test_skipped_music_and_sfx_are_applied_by_the_director(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from tests.unit.tools.test_executor import _catalog
+
+    ws = MemoryWorkspace(_timeline())
+    ws.catalog = _catalog(tmp_path)
+    # the model ignores both the request and the follow-up note
+    res, ws, _, _ = await _run(
+        [_done("Done."), _done("Still done.")],
+        ws,
+        msg="add motivational background music and sound effects",
+    )
+    assert res.coverage_followup == ["background music", "sound effects"]
+    assert res.autofixed == ["add_music", "auto_sfx"]
+    assert ws.timeline().music is not None
+    assert "add_music" in res.reply and "auto_sfx" in res.reply  # grounded reply says so
+
+
+async def test_visual_candidates_reach_the_model(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from tests.unit.inserts.test_keywords import TEXT, _catalog, _tl
+
+    ws = MemoryWorkspace(_tl(TEXT))
+    ws.catalog = _catalog(tmp_path)
+    seen: list[str] = []
+
+    def check(req: ToolTurnRequest) -> ToolTurnReply:
+        seen.append(req.messages[-1].text or "")
+        return _done()
+
+    await _run([check], ws, msg="hello")
+    assert "<visual_candidates>" in seen[0] and "icons:openai" in seen[0]
+
+
+def test_prompt_is_the_role_based_text_file() -> None:
+    from app.agent.context import PROMPT_FILE
+
+    assert PROMPT_FILE.suffix == ".txt" and RULES.startswith("ROLE")
+    for section in ("WHAT YOU ARE GIVEN", "HOW YOU WORK", "CRAFT RULES", "SAFETY"):
+        assert section in RULES
+
+
+async def test_plan_edit_is_read_only_and_flags_bad_words() -> None:
+    plan = _call(
+        "plan_edit",
+        summary="tech commentary",
+        steps=["remove_silence", "auto_visuals"],
+        moments=[{"at_word": "w2", "show": "logo"}, {"at_word": "w99", "show": "x"}],
+    )
+    res, ws, events, _ = await _run([plan, _done()])
+    assert res.versions == [] and ws.render_calls == []
+    result = next(e for e in events if e.type == "tool_result")
+    assert "w99 does not exist" in str(result.data["result"])

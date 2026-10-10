@@ -26,8 +26,8 @@ class Requirement:
 REQUIREMENTS = (
     Requirement(
         "images / memes / GIFs",
-        r"\b(?:images?|photos?|pictures?|memes?|gifs?|stickers?|b-?roll)\b",
-        frozenset({"add_inserts", "insert_asset", "insert_meme"}),
+        r"\b(?:images?|photos?|pictures?|memes?|gifs?|stickers?)\b",
+        frozenset({"add_inserts", "auto_visuals", "insert_asset", "insert_meme"}),
     ),
     Requirement("background music", r"\b(?:music|soundtrack|bgm)\b", frozenset({"add_music"})),
     Requirement(
@@ -40,9 +40,14 @@ REQUIREMENTS = (
     ),
     Requirement("cut transitions", r"\btransitions?\b", frozenset({"set_transition"})),
     Requirement(
+        "relevant visuals",
+        r"\b(?:b-?rolls?|visuals?|logos?|icons?)\b",
+        frozenset({"add_inserts", "auto_visuals", "insert_asset"}),
+    ),
+    Requirement(
         "sound effects",
-        r"\b(?:sound effects?|sfx|whoosh(?:es)?|swoosh(?:es)?)\b",
-        frozenset({"auto_sfx", "add_sfx"}),
+        r"\b(?:sound effects?|audio effects?|sfx|whoosh(?:es)?|swoosh(?:es)?)\b",
+        frozenset({"auto_sfx", "add_sfx", "generate_sfx"}),
     ),
     Requirement("noise reduction", r"\b(?:noise|denoise|hiss)\b", frozenset({"denoise"})),
     Requirement(
@@ -88,3 +93,52 @@ def missing(message: str, applied: set[str], timeline: Timeline) -> list[str]:
         if not done:
             gaps.append(req.label)
     return gaps
+
+
+# Requests whose fix needs no creative choice: if the model still skips them after the
+# follow-up note, the Director applies them itself with these defaults.
+_GENRES = (
+    (r"\b(?:motivat\w*|inspir\w*|hustle|grind|gym|success)\b", "electronic"),
+    (r"\b(?:sad|depress\w*|emotional|dark|moody|serious)\b", "ambient"),
+    (r"\b(?:epic|dramatic|cinematic|trailer)\b", "cinematic"),
+    (r"\b(?:birthday|party|celebrat\w*|happy|fun|wedding)\b", "upbeat"),
+    (r"\b(?:tech|coding|code|ai|startup|software|cyberpunk|futur\w*)\b", "electronic"),
+    (r"\b(?:chill|study|calm|relax\w*|tutorial|vlog)\b", "lofi"),
+    (r"\b(?:business|finance|money|corporate|product)\b", "corporate"),
+    (r"\b(?:rap|street|hip ?hop)\b", "hiphop"),
+)
+
+
+def music_genre(message: str, transcript_text: str = "", available: list[str] | None = None) -> str:
+    """Genre for a default music bed: the request's mood first, then the video's topic,
+    limited to the installed genres."""
+    ok = set(available) if available else {g for _, g in _GENRES} | {"upbeat"}
+    for text in (message.lower(), transcript_text.lower()):
+        for pattern, genre in _GENRES:
+            if genre in ok and re.search(pattern, text):
+                return genre
+    return "upbeat" if "upbeat" in ok else sorted(ok)[0]
+
+
+def autofix_calls(
+    gaps: list[str],
+    message: str,
+    transcript_text: str = "",
+    genres: list[str] | None = None,
+) -> list[tuple[str, dict[str, object]]]:
+    """Deterministic (tool, args) for gaps that have a safe default; others stay with the model."""
+    defaults: dict[str, tuple[str, dict[str, object]]] = {
+        "background music": (
+            "add_music",
+            {"genre": music_genre(message, transcript_text, genres)},
+        ),
+        "captions": ("add_captions", {}),
+        "noise reduction": ("denoise", {"enabled": True}),
+        "vertical 9:16 framing": ("reframe_9x16", {"mode": "blur"}),
+        "silence removal": ("remove_silence", {}),
+    }
+    calls = [defaults[g] for g in gaps if g in defaults]
+    # sound effects go last: they sync to the cuts and inserts placed before them
+    if "sound effects" in gaps:
+        calls.append(("auto_sfx", {}))
+    return calls

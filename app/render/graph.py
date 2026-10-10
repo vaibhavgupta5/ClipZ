@@ -109,6 +109,27 @@ class ReframeBlur:
 
 
 @dataclass(frozen=True)
+class ReframeSplitBottom:
+    """Split view: solid sleek dark top canvas + speaker video constrained to the bottom half."""
+
+    input: str
+    width: int
+    height: int
+
+    def render(self, out: str) -> str:
+        w, h = self.width, self.height
+        half_h = h // 2
+        return (
+            f"{self.input}split[rsb_bg][rsb_fg];"
+            f"[rsb_bg]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=40,"
+            f"drawbox=x=0:y=0:w={w}:h={half_h}:color=0x0d0e15@1.0:t=fill[sbg];"
+            f"[rsb_fg]scale={w}:{half_h}:force_original_aspect_ratio=increase,crop={w}:{half_h},"
+            f"eq=contrast=1.12:brightness=0.01:saturation=1.18,unsharp=5:5:0.8:5:5:0.4[sfg];"
+            f"[sbg][sfg]overlay=0:{half_h}{out}"
+        )
+
+
+@dataclass(frozen=True)
 class BlurBg:
     """Contain an image over its own blurred fullscreen copy."""
 

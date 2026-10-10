@@ -8,8 +8,10 @@ resolve only inside ASSETS_DIR. No network access happens here.
 
 import hashlib
 import json
+import math
 import re
 import unicodedata
+from collections import Counter
 from functools import cached_property
 from pathlib import Path
 
@@ -51,6 +53,7 @@ class LibraryItem(BaseModel):
     alpha: bool = False  # transparent sticker (overlay without a box)
     sfx_type: str = ""  # whoosh, pop, ding... (sound effects library)
     category: str = ""  # tech, comedy, info... (images)
+    aliases: list[str] = []  # spoken names that mean exactly this asset (brand icons)
 
 
 def asset_url(library: str, file: str) -> str:
@@ -69,12 +72,147 @@ def asset_path(root: str | Path, url: str) -> Path:
     return path
 
 
+SYNONYMS: dict[str, set[str]] = {
+    "coding": {
+        "code",
+        "software",
+        "developer",
+        "programming",
+        "ide",
+        "terminal",
+        "typing",
+        "matrix",
+        "dev",
+        "tech",
+    },
+    "code": {
+        "coding",
+        "software",
+        "developer",
+        "programming",
+        "ide",
+        "terminal",
+        "matrix",
+        "dev",
+        "tech",
+    },
+    "developer": {
+        "coding",
+        "code",
+        "software",
+        "programming",
+        "ide",
+        "engineer",
+        "builder",
+        "dev",
+        "tech",
+    },
+    "programmer": {"coding", "code", "software", "developer", "programming", "ide"},
+    "software": {"code", "coding", "developer", "programming", "app", "application", "tech"},
+    "ai": {
+        "artificial",
+        "intelligence",
+        "neural",
+        "brain",
+        "machine",
+        "learning",
+        "robot",
+        "smart",
+        "claude",
+        "llm",
+        "future",
+    },
+    "claude": {
+        "ai",
+        "code",
+        "coding",
+        "developer",
+        "programming",
+        "robot",
+        "software",
+        "neural",
+        "terminal",
+    },
+    "builder": {"developer", "code", "startup", "office", "engineer", "build", "production"},
+    "production": {
+        "datacenter",
+        "server",
+        "architecture",
+        "cloud",
+        "aws",
+        "network",
+        "system",
+        "code",
+    },
+    "system": {
+        "datacenter",
+        "server",
+        "architecture",
+        "cloud",
+        "network",
+        "microprocessor",
+        "chip",
+    },
+    "dse": {"coding", "code", "programming", "languages", "developer", "software", "matrix"},
+    "dsa": {"coding", "code", "programming", "languages", "developer", "matrix"},
+    "startup": {"office", "builder", "business", "desk", "laptop", "teamwork", "growth"},
+    "tech": {
+        "technology",
+        "computer",
+        "digital",
+        "matrix",
+        "cyber",
+        "hardware",
+        "software",
+        "data",
+    },
+    "cloud": {"server", "datacenter", "amazon", "aws", "network", "infrastructure"},
+    "money": {"finance", "stock", "market", "wealth", "cash", "dollars", "profit", "crypto"},
+    "finance": {"money", "stock", "market", "wealth", "profit", "trading", "chart"},
+    "growth": {"stock", "market", "chart", "profit", "success", "wealth"},
+}
+
+
+def _expand_tokens(tokens: set[str]) -> set[str]:
+    expanded = set(tokens)
+    for t in tokens:
+        if t in SYNONYMS:
+            expanded.update(SYNONYMS[t])
+    return expanded
+
+
 def _tokens(text: str) -> set[str]:
     return set(_WORD.findall(text.lower()))
 
 
+# Tags that describe the medium, not the content: they never make an asset "relevant".
+GENERIC_TAGS = frozenset({
+    "video", "videos", "b", "roll", "broll", "clip", "visual", "image", "photo", "picture",
+    "stock", "logo", "icon", "brand", "meme", "gif", "sticker", "background", "free",
+})  # fmt: skip
+
+
+def _stem(token: str) -> str:
+    """Light plural folding so 'gpus' meets 'gpu' and 'servers' meets 'server'."""
+    if len(token) > 4 and token.endswith("ies"):
+        return token[:-3] + "y"
+    if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+        return token[:-1]
+    return token
+
+
+def content_tokens(text: str) -> set[str]:
+    """Stemmed, non-generic tokens of a tag/title/spoken phrase."""
+    return {_stem(t) for t in _WORD.findall(text.lower())} - GENERIC_TAGS
+
+
+def alias_key(text: str) -> str:
+    """'Chat GPT' / 'chatgpt' / 'ChatGPT' -> 'chatgpt' ('c++' keeps its pluses)."""
+    return re.sub(r"[^a-z0-9+]", "", text.lower())
+
+
 class Library:
-    """A validated manifest plus simple tag/title search."""
+    """A validated manifest plus weighted tag/title/synonym search."""
 
     def __init__(self, root: str | Path, name: str) -> None:
         self.root = Path(root)
@@ -103,21 +241,69 @@ class Library:
     def search(
         self, query: str, limit: int, where: dict[str, str] | None = None
     ) -> list[LibraryItem]:
-        """Items ranked by query-token overlap with tags + title (ties keep manifest order).
-
-        With ``where`` every item passing the filter is returned, best matches first.
-        """
-        wanted = _tokens(query)
+        """Items ranked by direct and synonym matches with tags and title."""
+        wanted_direct = _tokens(query)
+        wanted_expanded = _expand_tokens(wanted_direct)
         pool = [i for i in self.items if all(getattr(i, k) == v for k, v in (where or {}).items())]
-        scored = [
-            (len(wanted & (_tokens(" ".join(i.tags)) | _tokens(i.title))), n, i)
-            for n, i in enumerate(pool)
-        ]
-        # A filter (e.g. genre) narrows the pool and the query only ranks within it;
-        # without a filter, only items that match the query are returned.
-        hits = scored if where or not wanted else [s for s in scored if s[0] > 0]
+
+        scored = []
+        for n, i in enumerate(pool):
+            tags_tokens = _tokens(" ".join(i.tags))
+            title_tokens = _tokens(i.title)
+            # Weighted: direct tag hit 3, direct title hit 2, synonym hit 1
+            direct_tag_hits = len(wanted_direct & tags_tokens)
+            direct_title_hits = len(wanted_direct & title_tokens)
+            synonym_hits = len((wanted_expanded - wanted_direct) & (tags_tokens | title_tokens))
+            score = (direct_tag_hits * 3) + (direct_title_hits * 2) + synonym_hits
+            scored.append((score, n, i))
+
+        hits = scored if where or not wanted_direct else [s for s in scored if s[0] > 0]
         hits.sort(key=lambda s: (-s[0], s[1]))
         return [i for _, _, i in hits[:limit]]
+
+    @cached_property
+    def _match_index(
+        self,
+    ) -> tuple[Counter[str], list[tuple[LibraryItem, set[str], set[str], set[str]]]]:
+        rows = [
+            (
+                i,
+                content_tokens(" ".join(i.tags) + " " + i.title),
+                {alias_key(a) for a in i.aliases},
+                content_tokens(" ".join(i.tags)),
+            )
+            for i in self.items
+        ]
+        df: Counter[str] = Counter(t for _, toks, _, _ in rows for t in toks)
+        return df, rows
+
+    def match(self, phrase: str) -> list[tuple[float, LibraryItem]]:
+        """Relevance-scored items for a spoken phrase, best first.
+
+        An exact alias ('chatgpt' for the OpenAI icon) scores 10. Otherwise EVERY content
+        token of the phrase must be a tag/title token of the item; the score is 2..5 by
+        how specific those tags are (normalised IDF), so a tag shared by half the library
+        scores low whatever the library size. Generic medium words never count.
+        """
+        df, rows = self._match_index
+        key = alias_key(phrase)
+        wanted = content_tokens(phrase)
+        n = max(1, len(rows))
+        out: list[tuple[float, LibraryItem]] = []
+        for item, toks, aliases, tag_toks in rows:
+            if key and key in aliases:
+                out.append((10.0, item))
+            elif wanted and wanted <= toks:
+                # specificity 0..1: 1 = tag unique to this item, ~0 = tag on everything
+                spec = sum(math.log(1 + n / df[t]) for t in wanted) / (
+                    len(wanted) * math.log(1 + n)
+                )
+                # titles carry incidental words ("server room taking shape"): tags count more
+                weight = 1.0 if wanted <= tag_toks else 0.6
+                phrase_bonus = 1 + 0.25 * (len(wanted) - 1)
+                out.append((round((2 + 3 * spec) * weight * phrase_bonus, 3), item))
+        out.sort(key=lambda x: -x[0])
+        return out
 
     def path(self, item: LibraryItem) -> Path:
         """Absolute file path for an item."""
@@ -288,12 +474,166 @@ def _draw_meme(src: Path, dest: Path, top: str, bottom: str) -> None:
     img.save(dest, "PNG")
 
 
-LIBRARIES = ("images", "gifs", "memes", "music", "sfx", "generated")
+def _parse_color(val: str | None, default: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    if not val:
+        return default
+    s = val.lstrip("#")
+    if len(s) == 6:
+        r, g, b = int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
+        return (r, g, b, default[3])
+    elif len(s) == 8:
+        r, g, b, a = int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16), int(s[6:8], 16)
+        return (r, g, b, a)
+    return default
+
+
+def _draw_headline_card(
+    dest: Path,
+    text: str,
+    style: str = "banner",
+    bg_color: str | None = None,
+    text_color: str | None = None,
+) -> None:
+    import textwrap
+
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+    from app.render.fonts import font_for
+
+    is_dev = any("DEVANAGARI" in unicodedata.name(ch, "") for ch in text)
+    _, font_path = font_for("devanagari" if is_dev else "latin_bold")
+
+    clean_text = _clean(text).strip()
+    if not clean_text:
+        clean_text = "HEADLINE"
+
+    scale = 2
+    font_size = 48 * scale
+    font = ImageFont.truetype(font_path, font_size)
+
+    lines = textwrap.wrap(clean_text, width=22)
+    if not lines:
+        lines = [clean_text]
+
+    test_img = Image.new("RGBA", (1200 * scale, 400 * scale), (0, 0, 0, 0))
+    test_draw = ImageDraw.Draw(test_img)
+
+    line_heights: list[int] = []
+    max_line_w = 0
+    for line in lines:
+        bbox = test_draw.textbbox((0, 0), line, font=font)
+        lw = int(bbox[2] - bbox[0])
+        lh = int(bbox[3] - bbox[1])
+        max_line_w = max(max_line_w, lw)
+        line_heights.append(lh)
+
+    line_gap = 12 * scale
+    total_text_h = sum(line_heights) + (len(lines) - 1) * line_gap
+    pad_x = 48 * scale
+    pad_y = 24 * scale
+
+    box_w = min(960 * scale, max(max_line_w + pad_x * 2, 520 * scale))
+    box_h = total_text_h + pad_y * 2
+    radius = box_h // 2 if style == "pill" else 20 * scale
+
+    shadow_margin = 22 * scale
+    canvas_w = box_w + shadow_margin * 2
+    canvas_h = box_h + shadow_margin * 2
+
+    canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+
+    # 1. Soft Ambient Elevation Drop Shadow
+    shadow_img = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+    s_draw = ImageDraw.Draw(shadow_img)
+    s_offset_y = 6 * scale
+    s_box = [
+        shadow_margin,
+        shadow_margin + s_offset_y,
+        shadow_margin + box_w - 1,
+        shadow_margin + box_h + s_offset_y - 1,
+    ]
+    s_draw.rounded_rectangle(s_box, radius=radius, fill=(0, 0, 0, 150))
+    shadow_img = shadow_img.filter(ImageFilter.GaussianBlur(radius=10 * scale))
+    canvas.alpha_composite(shadow_img)
+
+    # 2. Card Surface with Gradient
+    card_img = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    c_draw = ImageDraw.Draw(card_img)
+
+    if bg_color:
+        base_rgb = _parse_color(bg_color, (17, 24, 39, 240))
+        for y in range(box_h):
+            factor = y / max(1, box_h - 1)
+            r = max(0, int(base_rgb[0] * (1.1 - factor * 0.25)))
+            g = max(0, int(base_rgb[1] * (1.1 - factor * 0.25)))
+            b = max(0, int(base_rgb[2] * (1.1 - factor * 0.25)))
+            c_draw.line([(0, y), (box_w, y)], fill=(r, g, b, base_rgb[3]))
+    elif style == "alert":
+        for y in range(box_h):
+            factor = y / max(1, box_h - 1)
+            r = int(160 * (1 - factor) + 80 * factor)
+            g = int(24 * (1 - factor) + 12 * factor)
+            b = int(30 * (1 - factor) + 16 * factor)
+            c_draw.line([(0, y), (box_w, y)], fill=(r, g, b, 245))
+    elif style == "pill":
+        for y in range(box_h):
+            factor = y / max(1, box_h - 1)
+            r = int(22 * (1 - factor) + 10 * factor)
+            g = int(24 * (1 - factor) + 12 * factor)
+            b = int(32 * (1 - factor) + 16 * factor)
+            c_draw.line([(0, y), (box_w, y)], fill=(r, g, b, 240))
+    else:  # banner / minimal
+        for y in range(box_h):
+            factor = y / max(1, box_h - 1)
+            r = int(28 * (1 - factor) + 12 * factor)
+            g = int(32 * (1 - factor) + 15 * factor)
+            b = int(44 * (1 - factor) + 22 * factor)
+            c_draw.line([(0, y), (box_w, y)], fill=(r, g, b, 242))
+
+    mask = Image.new("L", (box_w, box_h), 0)
+    m_draw = ImageDraw.Draw(mask)
+    m_draw.rounded_rectangle([0, 0, box_w - 1, box_h - 1], radius=radius, fill=255)
+    card_composite = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    card_composite.paste(card_img, (0, 0), mask=mask)
+
+    # 3. Outer Subtle Glass Border
+    card_draw = ImageDraw.Draw(card_composite)
+    border_color = (254, 202, 202, 100) if style == "alert" else (255, 255, 255, 45)
+    card_draw.rounded_rectangle(
+        [0, 0, box_w - 1, box_h - 1],
+        radius=radius,
+        fill=None,
+        outline=border_color,
+        width=2 * scale,
+    )
+
+    # 4. Text with subtle shadow
+    fg_rgba = _parse_color(text_color, (255, 255, 255, 255))
+    curr_y = pad_y
+    for i, line in enumerate(lines):
+        bbox = card_draw.textbbox((0, 0), line, font=font)
+        lw = int(bbox[2] - bbox[0])
+        x = (box_w - lw) // 2
+        card_draw.text((x, curr_y + 2 * scale), line, font=font, fill=(0, 0, 0, 160))
+        card_draw.text((x, curr_y), line, font=font, fill=fg_rgba)
+        curr_y += line_heights[i] + line_gap
+
+    canvas.alpha_composite(card_composite, (shadow_margin, shadow_margin))
+
+    # Downscale with high quality Lanczos filter for smooth antialiased edges
+    final_img = canvas.resize((canvas_w // scale, canvas_h // scale), Image.Resampling.LANCZOS)
+    final_img.save(dest, "PNG")
+
+
+LIBRARIES = (
+    "images", "gifs", "videos", "icons", "memes", "music", "sfx", "generated", "headlines",
+)  # fmt: skip
 
 
 def resolve_asset_file(assets_root: str | Path, meme_dir: str | Path, asset_id: str) -> Path | None:
     """File for a library asset id (``images:<id>`` ...) or a rendered meme
-    (``memes:<template>:<digest>``); None when it is not a library asset."""
+    (``memes:<template>:<digest>``) or rendered headline (``headlines:<digest>``);
+    None when it is not a library asset."""
     lib_name = asset_id.split(":", 1)[0]
     if lib_name not in LIBRARIES:
         return None
@@ -302,6 +642,12 @@ def resolve_asset_file(assets_root: str | Path, meme_dir: str | Path, asset_id: 
         if not re.fullmatch(r"[0-9a-f]{16}", digest):
             return None
         path = Path(meme_dir) / f"{digest}.png"
+        return path if path.is_file() else None
+    if lib_name == "headlines" and ":" in asset_id:
+        digest = asset_id.split(":", 1)[1]
+        if not re.fullmatch(r"[0-9a-f]{16}", digest):
+            return None
+        path = Path(meme_dir) / f"hl_{digest}.png"
         return path if path.is_file() else None
     lib = Library(assets_root, lib_name)
     item = next((i for i in lib.items if i.id == asset_id), None)
@@ -312,7 +658,8 @@ class AssetCatalog:
     """Synchronous facade over the local libraries for the tool executor."""
 
     KINDS = {
-        "image": "images", "gif": "gifs", "meme": "memes", "music": "music", "sfx": "sfx",
+        "image": "images", "gif": "gifs", "video": "videos", "meme": "memes", "music": "music",
+        "sfx": "sfx", "icon": "icons",
         "generated": "generated",  # ElevenLabs output (app/providers/generated.py)
     }  # fmt: skip
 
@@ -328,6 +675,10 @@ class AssetCatalog:
     def search(self, kind: str, query: str, limit: int) -> list[LibraryItem]:
         """Best matches in one library (kind: image | gif | meme)."""
         return self._libs[kind].search(query, limit)
+
+    def match(self, kind: str, phrase: str) -> list[tuple[float, LibraryItem]]:
+        """Relevance-scored matches for a spoken phrase in one library (see Library.match)."""
+        return self._libs[kind].match(phrase)
 
     def music(self, genre: str | None, mood: str, min_s: float) -> list[LibraryItem]:
         """Tracks in a genre (or all), mood-ranked, long-enough first."""
@@ -370,3 +721,37 @@ class AssetCatalog:
             out.parent.mkdir(parents=True, exist_ok=True)
             _draw_meme(self._libs["meme"].path(item), out, top_c, bottom_c)
         return f"{template_id}:{digest}", item
+
+    def render_headline(
+        self,
+        text: str,
+        style: str = "banner",
+        bg_color: str | None = None,
+        text_color: str | None = None,
+    ) -> tuple[str, LibraryItem]:
+        """Render a headline card PNG; returns (rendered asset id, item)."""
+        text_c = _clean(text).strip()
+        style_c = (style or "banner").strip()
+        bg_c = (bg_color or "").strip().lower()
+        fg_c = (text_color or "").strip().lower()
+        raw_key = f"{text_c}\x00{style_c}\x00{bg_c}\x00{fg_c}"
+        digest = hashlib.sha256(raw_key.encode()).hexdigest()[:16]
+        out = self.meme_dir / f"hl_{digest}.png"
+        if not out.exists():
+            out.parent.mkdir(parents=True, exist_ok=True)
+            _draw_headline_card(
+                out, text_c, style=style_c, bg_color=bg_c or None, text_color=fg_c or None
+            )
+        item = LibraryItem(
+            id=f"headlines:{digest}",
+            file=f"hl_{digest}.png",
+            title=f"Headline: {text_c[:30]}",
+            tags=["headline", "card", style_c],
+            source="generated",
+            license="proprietary",
+            attribution_required=False,
+            attribution_text="",
+            commercial_use=True,
+            alpha=True,
+        )
+        return f"headlines:{digest}", item

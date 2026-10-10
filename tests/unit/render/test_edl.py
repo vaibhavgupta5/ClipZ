@@ -51,6 +51,31 @@ def test_reframe_dims_per_profile() -> None:
     assert "scale=1080:1920:" in script
 
 
+def test_reframe_split_bottom() -> None:
+    tl = _timeline(reframe="split_bottom")
+    script, _ = build_video_filter(tl, FINAL)
+    assert "scale=1080:960:" in script
+    assert "overlay=0:960" in script
+
+
+def test_overlay_split_top() -> None:
+    ov = Overlay(
+        id="ins1",
+        type="image",
+        asset="img1",
+        anchor_word="w1",
+        offset_ms=0,
+        duration_ms=1000,
+        layout="split_top",
+        license="CC0-1.0",
+    )
+    tl = _timeline(reframe="split_bottom", overlays=[ov])
+    script, _ = build_video_filter(tl, FINAL, asset_labels={"img1": "[1:v]"})
+    assert "scale=1080:960:force_original_aspect_ratio=increase,crop=1080:960" in script
+    # split panels appear as their word is SAID (word start), same as the segment splitter
+    assert "overlay=0:0:enable='between(t,0.000,1.000)'" in script
+
+
 def test_zoom_anchors_to_word_time() -> None:
     tl = _timeline(zooms=[Zoom(id="z1", anchor_word="w2", scale=1.15, dur_ms=220)])
     script, _ = build_video_filter(tl, PREVIEW)
@@ -73,6 +98,23 @@ def test_overlay_enable_window_and_layout() -> None:
     script, _ = build_video_filter(tl, PREVIEW, asset_labels={"g1": "[1:v]"})
     assert "enable='between(t,0.980,2.080)'" in script
     assert "overlay=" in script
+
+
+def test_overlay_top_banner_starts_at_word_start() -> None:
+    ov = Overlay(
+        id="hl1",
+        type="headline_card",
+        asset="hl_123",
+        anchor_word="w1",
+        offset_ms=0,
+        duration_ms=1500,
+        layout="top_banner",
+        license="proprietary",
+    )
+    tl = _timeline(overlays=[ov])
+    script, _ = build_video_filter(tl, PREVIEW, asset_labels={"hl_123": "[1:v]"})
+    assert "enable='between(t,0.000,1.500)'" in script
+    assert "overlay=(W-w)/2:67" in script or "overlay=(W-w)/2:" in script
 
 
 def test_missing_overlay_asset_raises() -> None:

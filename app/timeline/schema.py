@@ -87,22 +87,27 @@ class Zoom(BaseModel):
     )
 
 
+Layout = Literal[
+    "cutaway_full", "pip_pop", "split_top", "lower_third_card", "blur_bg_contain", "top_banner"
+]
+
+
 class Overlay(BaseModel):
     """Visual insert anchored to a word ID (cutaway, PiP, card...)."""
 
     model_config = Frozen
 
     id: str = Field(min_length=1, description="Insert ID, unique per timeline")
-    type: Literal["image", "gif", "meme", "stat_card", "headline_card"] = Field(
+    type: Literal["image", "gif", "video", "icon", "meme", "stat_card", "headline_card"] = Field(
         description="Asset type"
     )
     asset: str = Field(min_length=1, description="Asset ID")
     anchor_word: str = Field(pattern=WORD_ID, description="Anchor: end of this word + offset")
-    offset_ms: int = Field(default=80, ge=0, le=150, description="Delay after word end")
-    duration_ms: int = Field(ge=300, le=3000, description="On-screen duration")
-    layout: Literal[
-        "cutaway_full", "pip_pop", "split_top", "lower_third_card", "blur_bg_contain"
-    ] = Field(description="Layout mode")
+    offset_ms: int = Field(
+        default=80, ge=-500, le=500, description="Delay after word (or word start)"
+    )
+    duration_ms: int = Field(ge=300, le=120000, description="On-screen duration")
+    layout: Layout = Field(description="Layout mode")
     license: str = Field(default="", description="Asset license (presence enforced by validator)")
     attribution_required: bool = Field(default=False)
     attribution_text: str = Field(default="")
@@ -205,8 +210,10 @@ class Timeline(BaseModel):
     transition: Literal["none", "zoom_in", "flash", "whip"] = Field(
         default="none", description="Effect applied at the start of every clip after a cut"
     )
-    reframe: Literal["center", "face", "blur"] = Field(
-        default="center", description="9:16 reframe mode (face falls back to center without tracks)"
+    reframe: Literal["center", "face", "blur", "split_bottom", "split"] = Field(
+        default="center",
+        description="9:16 reframe mode (face falls back to center without tracks; "
+        "split_bottom puts the speaker in the bottom half)",
     )
 
     @field_validator("video_clips")

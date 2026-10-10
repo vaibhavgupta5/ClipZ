@@ -26,6 +26,7 @@ from app.render.edl_to_ffmpeg import (
 from app.render.errors import RenderError
 from app.render.segments import Segment, slice_hash, split_segments
 from app.storage import Storage
+from app.timeline import snap
 from app.timeline.schema import Timeline
 
 _PROFILE_BY_NAME = {"preview": PREVIEW, "final": FINAL}
@@ -117,6 +118,7 @@ async def render_timeline(
     stats = {"hits": 0, "misses": 0}
     seg_paths: list[str] = []
 
+    cut_points = snap.transition_points(tl)
     for seg in segments:
         ass_text = ass_for_cues(
             seg.cues,
@@ -131,7 +133,7 @@ async def render_timeline(
             animation=tl.captions.animation,
         )
         asset_shas = {aid: _sha_file(asset_files[aid]) for aid in _seg_asset_ids(seg, asset_files)}
-        cut_fx = tl.transition if seg.index > 0 else "none"
+        cut_fx = tl.transition if seg.index in cut_points else "none"
         variant = f"{profile.name}:{tl.reframe}:{cut_fx}"  # these change every pixel
         key = f"segments/{slice_hash(seg, variant, ass_text, asset_shas)}.mp4"
         local = work / f"seg{seg.index}.mp4"
@@ -154,6 +156,7 @@ async def render_timeline(
                 on_progress,
                 seg.start / total_dur,
                 (seg.end - seg.start) / total_dur,
+                seg.index in cut_points,
             )
             store.put_bytes(key, local.read_bytes(), "video/mp4")
         seg_paths.append(str(local))
@@ -231,6 +234,7 @@ def _render_segment(
     on_progress: Callable[[float], None],
     base: float,
     span: float,
+    styled_cut: bool = False,
 ) -> None:
     ass_path = out_path + ".ass"
     Path(ass_path).write_text(ass_text, encoding="utf-8")
@@ -252,7 +256,7 @@ def _render_segment(
         ass_path=ass_path if tl.captions.mode != "off" else None,
         overlay_windows=seg.overlays,
         zoom_windows=seg.zooms,
-        after_cut=seg.index > 0,
+        after_cut=styled_cut,
     )
     args = (
         [ffmpeg_path(), "-y"]

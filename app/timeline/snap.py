@@ -5,7 +5,7 @@ per-clip speed factors. Cut-away source times have no output mapping.
 """
 
 from app.timeline.errors import OpError
-from app.timeline.schema import EPS, Timeline, VideoClip
+from app.timeline.schema import EPS, Overlay, Timeline, VideoClip
 
 
 def _offsets(tl: Timeline) -> list[float]:
@@ -88,3 +88,58 @@ def snap_boundary(tl: Timeline, source_t: float, direction: str) -> float:
         if w.start < source_t < w.end:
             return w.start if direction == "backward" else w.end
     return source_t
+
+
+# Panels and banners appear as their word is SAID; cutaways land just after it ends.
+STARTS_AT_WORD_START = frozenset({"split_top", "top_banner"})
+
+
+def overlay_window(tl: Timeline, overlay: Overlay) -> tuple[float, float]:
+    """Output (start, end) of an overlay. Single source of truth for executor and renderer.
+    Raises OpError when its anchor word was cut."""
+    where = (
+        "start"
+        if overlay.type == "headline_card" or overlay.layout in STARTS_AT_WORD_START
+        else "end"
+    )
+    start = max(0.0, output_time_of(tl, overlay.anchor_word, where) + overlay.offset_ms / 1000.0)
+    return start, start + overlay.duration_ms / 1000.0
+
+
+MIN_SKIP_S = 0.6  # a cut that skips less source is a breath trim: keep it a clean hard cut
+TRANSITION_GAP_S = 3.0  # at most one styled transition per 3 s of output
+COVERING = frozenset({"cutaway_full", "blur_bg_contain"})
+
+
+def transition_points(tl: Timeline) -> set[int]:
+    """Clip indices whose incoming cut gets ``tl.transition``.
+
+    Editors style only real cuts: a jump that skips real content, not every silence trim;
+    never two within a few seconds; never under a full-screen insert that hides the cut.
+    """
+    if tl.transition == "none":
+        return set()
+    return real_cuts(tl)
+
+
+def real_cuts(tl: Timeline, gap_s: float = TRANSITION_GAP_S) -> set[int]:
+    """Indices of clips entered through a real, visible cut (see transition_points)."""
+    offsets = _offsets(tl)
+    covered: list[tuple[float, float]] = []
+    for o in tl.overlays:
+        if o.layout in COVERING:
+            try:
+                covered.append(overlay_window(tl, o))
+            except OpError:
+                continue
+    points: set[int] = set()
+    last = -TRANSITION_GAP_S
+    for i in range(1, len(tl.video_clips)):
+        prev, clip = tl.video_clips[i - 1], tl.video_clips[i]
+        jump = clip.asset != prev.asset or clip.src_in - prev.src_out >= MIN_SKIP_S
+        at = offsets[i]
+        hidden = any(s - EPS <= at <= e + EPS for s, e in covered)
+        if jump and not hidden and at - last >= gap_s:
+            points.add(i)
+            last = at
+    return points

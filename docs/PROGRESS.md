@@ -51,9 +51,21 @@
   cached by hash in `assets/generated/` with licence by plan; tools `generate_sfx`, `add_voiceover`,
   `remove_voiceover`, `dub_video` (arq `dub_task`); renderer swaps in the dub and ducks the speaker
   under voiceovers; credits for free-plan output. All tested offline (mock transport, real ffmpeg mix).
-- Stubbed / gaps: not yet run against the live API (needs ELEVENLABS_API_KEY); captions follow the
-  source transcript after a dub; voiceover text has no captions; no dub progress events in chat.
-- Next: Gemini video critic, Snowflake eval judge, DigitalOcean deploy, judges' pitch, DEV post,
-  Tiger Data justification PDF.
+- Gemini Video Critic: sample preview frames + transcript -> structured quality critique across 5 axes
+  (hook strength, pacing, caption legibility, visual variety, audio balance); integrated 2-iteration
+  self-correction loop in the Director with `critic_feedback` events.
+- Stubbed / gaps: live ElevenLabs / Gemini live calls pending API keys; captions follow source transcript after dub.
+- Next: Snowflake eval judge, DigitalOcean deploy, judges' pitch, DEV post, Tiger Data justification PDF.
+
+## Phase 6b: Director quality, relevant visuals, brand icons (plan docs/plans/PHASE-6b-director-and-app.md)
+- Built: keyword engine + `auto_visuals` + query-less `add_inserts` (ADR-019); 77 brand/tech logo
+  tiles (ADR-018); per-kind duration caps (no more 6-15 s images); split-screen panel hand-over;
+  shared overlay windows; transitions and whooshes only at real cuts; coverage autofix (music + SFX
+  are always applied when asked); role-based `director.txt` + `plan_edit`.
+- Integrated the other session's work-in-progress (split-screen layout, procedural B-roll videos,
+  headline cards, critic) and made it pass `make check`.
+- Gaps: logo tiles are personal-use until the owner decides (ADR-018); 7 curated clips unverified;
+  the image library's tags limit relevance (e.g. "technology" is broad); the critic still reviews the
+  timeline summary, not rendered frames.
 
 ## Phases 7-10: not started

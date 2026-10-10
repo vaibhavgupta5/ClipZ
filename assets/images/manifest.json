@@ -44,9 +44,11 @@
     "file": "f60e5abc-f424-4bcd-958c-7622f9d1dded.jpg",
     "title": "Innovate Maryland Emerging Technology Center",
     "tags": [
-      "technology",
-      "innovate",
-      "technology"
+      "conference",
+      "politics",
+      "handshake",
+      "meeting",
+      "government"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/64018555@N03/7084740991",
@@ -63,9 +65,11 @@
     "file": "9241fd9c-2add-4f0c-b021-35983e041281.jpg",
     "title": "Innovate Maryland Emerging Technology Center",
     "tags": [
-      "technology",
-      "innovate",
-      "technology"
+      "conference",
+      "politics",
+      "handshake",
+      "meeting",
+      "government"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/64018555@N03/6938655710",
@@ -607,14 +611,20 @@
     "title": "Robot",
     "tags": [
       "robot",
-      "robot"
+      "ai",
+      "artificial intelligence",
+      "claude",
+      "bot",
+      "smart",
+      "future",
+      "automation"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/73269789@N00/4953204502",
     "license": "CC-BY-2.0",
     "license_url": "https://creativecommons.org/licenses/by/2.0/",
     "attribution_required": true,
-    "attribution_text": "\"Robot\" by ♕ Lilla Coelho is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
+    "attribution_text": "\"Robot\" by \u2655 Lilla Coelho is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
     "commercial_use": true,
     "width": 1024,
     "height": 768
@@ -625,14 +635,20 @@
     "title": "Robot",
     "tags": [
       "robot",
-      "robot"
+      "ai",
+      "artificial intelligence",
+      "claude",
+      "bot",
+      "smart",
+      "future",
+      "automation"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/73269789@N00/4952612093",
     "license": "CC-BY-2.0",
     "license_url": "https://creativecommons.org/licenses/by/2.0/",
     "attribution_required": true,
-    "attribution_text": "\"Robot\" by ♕ Lilla Coelho is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
+    "attribution_text": "\"Robot\" by \u2655 Lilla Coelho is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
     "commercial_use": true,
     "width": 1024,
     "height": 768
@@ -1007,14 +1023,12 @@
     "tags": [
       "computer code",
       "tech",
-      "berlin",
-      "berlinminijam",
-      "jam",
-      "mini",
-      "airport",
-      "business",
-      "data",
-      "desktop"
+      "coding",
+      "code",
+      "software",
+      "programming",
+      "developer",
+      "screen"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/21051491@N02/20810083412",
@@ -1034,14 +1048,16 @@
     "tags": [
       "programming",
       "tech",
-      "assembler",
+      "coding",
+      "code",
+      "languages",
+      "developer",
+      "dse",
+      "dsa",
       "c",
-      "computer",
-      "evolution",
-      "fortran",
-      "funny",
-      "hex",
-      "java"
+      "java",
+      "ruby",
+      "software"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/14829735@N00/4833512699",
@@ -1061,14 +1077,12 @@
     "tags": [
       "server room",
       "tech",
-      "board",
-      "burn",
-      "centaur",
-      "design",
-      "emulation",
-      "microprocessor",
-      "viaisaiah",
-      "viaproducts"
+      "system design",
+      "infrastructure",
+      "servers",
+      "hardware",
+      "datacenter",
+      "production"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/15932083@N05/2293424530",
@@ -1089,12 +1103,10 @@
       "server room",
       "tech",
       "cabling",
-      "cat6",
-      "construction",
-      "darien",
-      "geekpr0n",
-      "library",
-      "newdarienlibrary",
+      "network",
+      "system design",
+      "datacenter",
+      "infrastructure",
       "server"
     ],
     "source": "openverse/flickr",
@@ -1169,14 +1181,13 @@
     "tags": [
       "data center",
       "tech",
-      "14mm",
-      "2011",
-      "5dmk2",
-      "angle",
-      "austin",
-      "canoneos5dmarkii",
       "datacenter",
-      "focus"
+      "system design",
+      "architecture",
+      "cloud",
+      "servers",
+      "production",
+      "network"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/16894864@N05/6239564720",
@@ -1197,13 +1208,12 @@
       "data center",
       "tech",
       "amazon",
-      "center",
-      "data",
-      "sterling",
-      "virginia",
-      "accident",
-      "architecture",
-      "building"
+      "aws",
+      "cloud",
+      "datacenter",
+      "infrastructure",
+      "production",
+      "system design"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/79616869@N00/5863167909",
@@ -1223,14 +1233,13 @@
     "tags": [
       "startup office",
       "tech",
-      "blue",
-      "business",
-      "carpet",
-      "chairs",
-      "coffee",
-      "couch",
-      "desks",
-      "green"
+      "builder",
+      "products",
+      "startup",
+      "software",
+      "office",
+      "company",
+      "work"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/147489968@N06/29300360824",
@@ -1250,14 +1259,12 @@
     "tags": [
       "startup office",
       "tech",
-      "ceiling",
-      "chairs",
-      "cord",
-      "cubicle",
+      "builder",
+      "products",
+      "startup",
+      "office",
       "desks",
-      "electric",
-      "employees",
-      "exit"
+      "work"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/147489968@N06/29927672875",
@@ -1304,10 +1311,13 @@
     "tags": [
       "keyboard typing",
       "tech",
-      "computer",
-      "keyboard",
       "laptop",
-      "typing"
+      "coding",
+      "code",
+      "typing",
+      "developer",
+      "software",
+      "engineer"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/61350948@N03/7957345676",
@@ -1327,11 +1337,13 @@
     "tags": [
       "keyboard typing",
       "tech",
-      "computer",
-      "keyboard",
       "laptop",
+      "coding",
+      "code",
       "typing",
-      "writing"
+      "developer",
+      "software",
+      "engineer"
     ],
     "source": "openverse/flickr",
     "source_url": "https://www.flickr.com/photos/61350948@N03/7957349734",
@@ -2853,7 +2865,7 @@
   {
     "id": "images:fdc9bc5a-5adb-4cad-9332-999696157082",
     "file": "fdc9bc5a-5adb-4cad-9332-999696157082.jpg",
-    "title": "Hubble’s Cosmic Holiday Wreath",
+    "title": "Hubble\u2019s Cosmic Holiday Wreath",
     "tags": [
       "space nebula",
       "science",
@@ -2871,7 +2883,7 @@
     "license": "CC-BY-2.0",
     "license_url": "https://creativecommons.org/licenses/by/2.0/",
     "attribution_required": true,
-    "attribution_text": "\"Hubble’s Cosmic Holiday Wreath\" by NASA Goddard Photo and Video is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
+    "attribution_text": "\"Hubble\u2019s Cosmic Holiday Wreath\" by NASA Goddard Photo and Video is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
     "commercial_use": true,
     "width": 1024,
     "height": 1006,
@@ -3100,12 +3112,12 @@
   {
     "id": "images:d6c4843e-95a2-4c1c-adc2-943e3c6238bd",
     "file": "d6c4843e-95a2-4c1c-adc2-943e3c6238bd.jpg",
-    "title": "Goðafoss Waterfall",
+    "title": "Go\u00f0afoss Waterfall",
     "tags": [
       "waterfall",
       "nature",
       "akureyri",
-      "goðafoss",
+      "go\u00f0afoss",
       "iceland",
       "waterfall"
     ],
@@ -3114,7 +3126,7 @@
     "license": "CC-BY-2.0",
     "license_url": "https://creativecommons.org/licenses/by/2.0/",
     "attribution_required": true,
-    "attribution_text": "\"Goðafoss Waterfall\" by D-Stanley is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
+    "attribution_text": "\"Go\u00f0afoss Waterfall\" by D-Stanley is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
     "commercial_use": true,
     "width": 1024,
     "height": 768,
@@ -3280,7 +3292,7 @@
     "license": "CC-BY-2.0",
     "license_url": "https://creativecommons.org/licenses/by/2.0/",
     "attribution_required": true,
-    "attribution_text": "\"Lonely Bench\" by Princess Léazz is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
+    "attribution_text": "\"Lonely Bench\" by Princess L\u00e9azz is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
     "commercial_use": true,
     "width": 1024,
     "height": 768,
