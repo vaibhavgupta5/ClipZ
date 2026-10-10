@@ -79,6 +79,9 @@ async def save_version(
     )
     version = (max_v or 0) + 1
     stamped = tl.model_copy(update={"version": version})
+    row = await session.get(TimelineRow, timeline_id)
+    if row is None:
+        raise ValueError(f"timeline {timeline_id} does not exist")
     session.add(
         TimelineVersionRow(
             timeline_id=timeline_id,
@@ -87,9 +90,6 @@ async def save_version(
             parent_version=parent,
         )
     )
-    row = await session.get(TimelineRow, timeline_id)
-    if row is None:
-        raise ValueError(f"timeline {timeline_id} does not exist")
     row.current_version = version
     await session.flush()
     return (version, stamped)
@@ -139,7 +139,6 @@ async def set_current(session: AsyncSession, timeline_id: uuid.UUID, version: in
     if not exists:
         raise ValueError(f"timeline {timeline_id} has no version {version}")
     row = await session.get(TimelineRow, timeline_id)
-    if row is None:
-        raise ValueError(f"timeline {timeline_id} does not exist")
+    assert row is not None  # version rows FK-require the timeline row
     row.current_version = version
     await session.flush()

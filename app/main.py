@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from structlog import contextvars
 
 from app.api.health import router as health_router
+from app.api.timelines import router as timelines_router
 from app.logging_setup import get_logger, setup_logging
 from app.settings import Settings, get_settings
 
@@ -31,6 +32,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return response
 
     app.include_router(health_router)
+    app.include_router(timelines_router)
     return app
 
 

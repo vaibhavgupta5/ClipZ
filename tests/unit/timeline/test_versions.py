@@ -2,7 +2,7 @@
 
 from app.timeline.schema import CaptionConfig, OutputSpec, Timeline, VideoClip
 from app.timeline.transcript import Transcript, Word
-from app.timeline.versions import VersionLog
+from app.timeline.versions import VersionEntry, VersionLog
 
 
 def _tl() -> Timeline:
@@ -30,6 +30,11 @@ def test_undo_at_first_version_stays() -> None:
     assert log.undo().current == 1
 
 
+def test_redo_follows_linear_chain() -> None:
+    log = VersionLog().append(_tl()).append(_tl())
+    assert log.undo().redo().current == 2
+
+
 def test_edit_after_undo_branches_keeping_history() -> None:
     log = VersionLog().append(_tl()).append(_tl())
     log = log.undo()  # pointer at 1, v2 kept
@@ -46,3 +51,15 @@ def test_version_log_is_immutable() -> None:
     assert len(log.entries) == 1  # original untouched
     assert len(grown.entries) == 2
     assert log.current == 1 and grown.current == 2
+
+
+def test_redo_refuses_nonlinear_jump() -> None:
+    edl = _tl().model_dump(mode="json")
+    log = VersionLog(
+        entries=(
+            VersionEntry(version=1, parent=None, edl=edl),
+            VersionEntry(version=2, parent=None, edl=edl),  # parent != pointer: not a redo
+        ),
+        current=1,
+    )
+    assert log.redo().current == 1

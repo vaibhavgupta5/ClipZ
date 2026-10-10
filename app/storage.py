@@ -27,6 +27,9 @@ class Storage(Protocol):
     def put_bytes(self, key: str, data: bytes, content_type: str) -> None: ...
     def get_bytes(self, key: str) -> bytes: ...
     def delete(self, key: str) -> None: ...
+    def stat(self, key: str) -> int:
+        """Size in bytes. Raises KeyError when missing."""
+        ...
 
 
 class MemoryStorage:
@@ -53,6 +56,12 @@ class MemoryStorage:
     def delete(self, key: str) -> None:
         self._blobs.pop(validate_key(key), None)
 
+    def stat(self, key: str) -> int:
+        try:
+            return len(self._blobs[validate_key(key)])
+        except KeyError:
+            raise KeyError(f"object not found: {key!r}") from None
+
 
 class S3Storage:
     """boto3-backed Storage for any S3-compatible endpoint."""
@@ -65,6 +74,7 @@ class S3Storage:
         secret_key: str,
         region: str = "us-east-1",
         client: BaseClient | None = None,
+        public_endpoint: str | None = None,
     ) -> None:
         self.endpoint = endpoint
         self.bucket = bucket
@@ -72,6 +82,8 @@ class S3Storage:
         self.secret_key = secret_key
         self.region = region
         self._client = client
+        self._public_endpoint = public_endpoint or endpoint
+        self._presign_client: BaseClient | None = None
 
     def _get_client(self) -> BaseClient:
         if self._client is None:
@@ -84,6 +96,19 @@ class S3Storage:
                 config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
             )
         return self._client
+
+    def _get_presign_client(self) -> BaseClient:
+        """Signing-only client bound to the PUBLIC endpoint (no requests ever made)."""
+        if self._presign_client is None:
+            self._presign_client = boto3.client(
+                "s3",
+                endpoint_url=self._public_endpoint,
+                aws_access_key_id=self.access_key,
+                aws_secret_access_key=self.secret_key,
+                region_name=self.region,
+                config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+            )
+        return self._presign_client
 
     def ensure_bucket(self) -> None:
         """Create the bucket if it does not exist (idempotent)."""
@@ -106,7 +131,7 @@ class S3Storage:
     def presigned_upload_url(self, key: str, content_type: str, expires_s: int = 3600) -> str:
         validate_key(key)
         return str(
-            self._get_client().generate_presigned_url(
+            self._get_presign_client().generate_presigned_url(
                 "put_object",
                 Params={"Bucket": self.bucket, "Key": key, "ContentType": content_type},
                 ExpiresIn=expires_s,
@@ -116,7 +141,7 @@ class S3Storage:
     def presigned_download_url(self, key: str, expires_s: int = 3600) -> str:
         validate_key(key)
         return str(
-            self._get_client().generate_presigned_url(
+            self._get_presign_client().generate_presigned_url(
                 "get_object", Params={"Bucket": self.bucket, "Key": key}, ExpiresIn=expires_s
             )
         )
@@ -141,6 +166,16 @@ class S3Storage:
         validate_key(key)
         self._get_client().delete_object(Bucket=self.bucket, Key=key)
 
+    def stat(self, key: str) -> int:
+        validate_key(key)
+        try:
+            resp = self._get_client().head_object(Bucket=self.bucket, Key=key)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in {"NoSuchKey", "404"}:
+                raise KeyError(f"object not found: {key!r}") from None
+            raise
+        return int(resp["ContentLength"])
+
 
 def get_storage(settings: Settings) -> S3Storage:
     """Build the configured S3Storage from settings."""
@@ -150,4 +185,5 @@ def get_storage(settings: Settings) -> S3Storage:
         access_key=settings.S3_ACCESS_KEY,
         secret_key=settings.S3_SECRET_KEY,
         region=settings.S3_REGION,
+        public_endpoint=settings.S3_PUBLIC_ENDPOINT,
     )

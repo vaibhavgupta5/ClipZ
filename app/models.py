@@ -65,6 +65,9 @@ class Asset(Base):
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_sha: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="Source bytes hash for derived assets"
+    )
     source: Mapped[str] = mapped_column(String(64), nullable=False)
     license: Mapped[str] = mapped_column(String(64), nullable=False)
     attribution_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

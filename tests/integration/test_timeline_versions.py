@@ -71,6 +71,16 @@ async def test_save_load_undo_branch_round_trip() -> None:
 
             loaded = await load_version(session, tid, 2)
             assert loaded.duration_s == _tl().duration_s
+
+            missing = uuid.uuid4()
+            with pytest.raises(ValueError, match="does not exist"):
+                await save_version(session, missing, _tl(), parent=None)
+            with pytest.raises(ValueError, match="has no version"):
+                await load_version(session, tid, 99)
+            with pytest.raises(ValueError, match="does not exist"):
+                await get_current(session, missing)
+            with pytest.raises(ValueError, match="has no version"):
+                await set_current(session, tid, 99)
             await session.rollback()  # leave no test rows behind
     finally:
         await engine.dispose()

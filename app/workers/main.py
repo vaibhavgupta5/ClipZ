@@ -6,6 +6,7 @@ from arq.connections import RedisSettings
 
 from app.logging_setup import get_logger, setup_logging
 from app.settings import get_settings
+from app.workers.ingest import ingest_asset
 
 log = get_logger(component="worker")
 
@@ -32,7 +33,7 @@ async def health_ping(ctx: dict[str, Any]) -> dict[str, str]:
 class WorkerSettings:
     """Arq worker config (functions registered per phase)."""
 
-    functions = [health_ping]
+    functions = [health_ping, ingest_asset]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(get_settings().REDIS_URL)

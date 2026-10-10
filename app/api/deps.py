@@ -3,31 +3,30 @@
 import hashlib
 import uuid
 from collections.abc import AsyncIterator
+from typing import Annotated
 
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import db as db_module
 from app.models import Project, User
-from app.settings import Settings, get_settings
-
-_engine: AsyncEngine | None = None
-
-
-def get_engine(settings: Settings | None = None) -> AsyncEngine:
-    """Process-wide cached async engine."""
-    global _engine
-    if _engine is None:
-        _engine = db_module.create_engine(settings or get_settings())
-    return _engine
+from app.settings import get_settings
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """Per-request session (routes commit explicitly)."""
-    factory = db_module.session_factory(get_engine())
-    async with factory() as session:
-        yield session
+    """Per-request session on a fresh engine.
+
+    A fresh engine per request (not a global) keeps event-loop affinity correct
+    under both uvicorn and function-scoped test loops. Lifespan pooling is Phase-10 work.
+    """
+    engine = db_module.create_engine(get_settings())
+    try:
+        factory = db_module.session_factory(engine)
+        async with factory() as session:
+            yield session
+    finally:
+        await engine.dispose()
 
 
 def _hash_key(api_key: str) -> str:
@@ -51,9 +50,13 @@ async def require_user(x_api_key: str | None = Header(default=None)) -> uuid.UUI
     """401 when the API key header is missing; otherwise the stub user id."""
     if not x_api_key:
         raise HTTPException(status_code=401, detail="X-API-Key header required")
-    factory = db_module.session_factory(get_engine())
-    async with factory() as session:
-        return await get_or_create_user_id(session, x_api_key)
+    engine = db_module.create_engine(get_settings())
+    try:
+        factory = db_module.session_factory(engine)
+        async with factory() as session:
+            return await get_or_create_user_id(session, x_api_key)
+    finally:
+        await engine.dispose()
 
 
 async def owned_project(
@@ -66,3 +69,7 @@ async def owned_project(
     if project is None:
         raise HTTPException(status_code=404, detail="project not found")
     return project
+
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
+UserDep = Annotated[uuid.UUID, Depends(require_user)]

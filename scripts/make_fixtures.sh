@@ -51,3 +51,21 @@ ffmpeg -hide_banner -loglevel error -y \
   "$OUT/rotated.mp4"
 
 echo "[fixtures] done: $(ls "$OUT"/*.mp4 | wc -l) files"
+
+echo "[fixtures] silent_5s (no audio stream)"
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "testsrc2=size=720x1280:rate=30:duration=5" \
+  -vf "drawtext=fontfile=$FONT:text='%{frame_num}':x=20:y=20:fontsize=48:fontcolor=white,format=yuv420p" \
+  -c:v libx264 -preset veryfast -crf 23 -r 30 -an \
+  -t 5 "$OUT/silent_5s.mp4"
+
+echo "[fixtures] mono_5s (single channel audio)"
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "testsrc2=size=720x1280:rate=30:duration=5" \
+  -f lavfi -i "sine=frequency=440:duration=5" \
+  -vf "drawtext=fontfile=$FONT:text='%{frame_num}':x=20:y=20:fontsize=48:fontcolor=white,format=yuv420p" \
+  -c:v libx264 -preset veryfast -crf 23 -r 30 \
+  -c:a aac -ar 48000 -ac 1 \
+  -t 5 "$OUT/mono_5s.mp4"
+
+echo "[fixtures] done: $(ls "$OUT"/*.mp4 | wc -l) files total"

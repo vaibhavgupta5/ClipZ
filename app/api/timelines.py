@@ -3,12 +3,12 @@
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, owned_project, require_user
+from app.api.deps import SessionDep, UserDep, owned_project
 from app.models import Project
 from app.models import Timeline as TimelineRow
 from app.timeline import ops as timeline_ops
@@ -26,9 +26,6 @@ from app.timeline.versions import (
 )
 
 router = APIRouter()
-
-SessionDep = Annotated[AsyncSession, Depends(get_session)]
-UserDep = Annotated[uuid.UUID, Depends(require_user)]
 
 
 # --- Op request models (discriminated union; one variant per op) ---

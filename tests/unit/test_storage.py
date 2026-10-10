@@ -21,6 +21,18 @@ def test_validate_key_rejects_traversal() -> None:
     validate_key("proj-1/normalized/master.mp4")  # must not raise
 
 
+def test_s3_presigned_url_uses_public_endpoint() -> None:
+    store = S3Storage(
+        endpoint="http://internal:3900",
+        bucket="reelforge",
+        access_key="a",
+        secret_key="b",
+        public_endpoint="http://public:9000",
+    )
+    url = store.presigned_upload_url("proj/x.mp4", "video/mp4", expires_s=60)
+    assert url.startswith("http://public:9000/reelforge/proj/x.mp4")
+
+
 def test_s3_presigned_url_shape_without_network() -> None:
     store = S3Storage(
         endpoint="http://localhost:9000", bucket="reelforge", access_key="a", secret_key="b"
