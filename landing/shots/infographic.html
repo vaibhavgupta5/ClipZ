@@ -1,0 +1,56 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;900&family=Hanken+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="poster.css">
+<style>
+body{background:var(--cobalt)}
+.top{position:absolute;left:70px;right:70px;top:80px}
+.top .eyebrow{color:var(--yellow)}
+.top .h{font-size:96px;margin-top:22px}
+.top .h em{font-style:normal;color:var(--yellow)}
+.top p{font-size:30px;line-height:1.3;margin-top:22px;max-width:30ch;opacity:.92}
+.flow{position:absolute;left:70px;right:70px;top:470px;display:flex;flex-direction:column;gap:24px}
+.flow::before{content:"";position:absolute;left:43px;top:40px;bottom:40px;border-left:4px dashed rgba(255,255,255,.45)}
+.st{position:relative;display:grid;grid-template-columns:90px 1fr;gap:26px;align-items:center}
+.dot{width:90px;height:90px;border-radius:50%;background:var(--ink);color:var(--yellow);display:grid;place-items:center;
+  font-family:var(--display);font-weight:900;font-size:34px;border:4px solid var(--cobalt);box-shadow:0 0 0 3px var(--ink)}
+.card{background:var(--ink);border-radius:26px;padding:18px 26px;display:grid;grid-template-columns:1fr auto;gap:6px 18px;align-items:center}
+.card h3{font-family:var(--display);font-weight:900;font-size:36px;letter-spacing:-.02em}
+.card p{grid-column:1/-1;font-size:24px;line-height:1.3;color:#C9C8E8}
+.card .t{font-family:var(--mono);font-size:19px;padding:8px 12px;border-radius:10px;background:var(--ink-2);border:2px solid var(--line);white-space:nowrap}
+.st.hi .card{background:var(--yellow);color:var(--ink)}
+.st.hi .card p{color:var(--ink)}
+.st.hi .card .t{background:var(--ink);color:var(--yellow);border-color:var(--ink)}
+.st.hi .dot{background:var(--yellow);color:var(--ink)}
+.nums{position:absolute;left:70px;right:70px;top:1580px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.nums div{border-top:4px solid var(--paper);padding-top:12px}
+.nums b{display:block;font-family:var(--display);font-weight:900;font-size:58px;letter-spacing:-.04em;line-height:1}
+.nums span{font-size:21px;opacity:.9}
+</style></head><body>
+<div class="grain"></div>
+<div class="top">
+  <div class="eyebrow">How ClipZ edits a reel</div>
+  <h1 class="h">From raw clip<br>to <em>reel</em>, in chat.</h1>
+  <p>The model never writes FFmpeg. It edits a typed timeline; code does the cutting.</p>
+</div>
+<div class="flow">
+  <div class="st"><div class="dot">1</div><div class="card"><h3>Upload</h3><span class="t">≤ 90 s · en / hi</span>
+    <p>Normalised to constant frame rate and SDR, with a 540p proxy for fast previews.</p></div></div>
+  <div class="st"><div class="dot">2</div><div class="card"><h3>Analyse</h3><span class="t">cached by hash</span>
+    <p>Word-level transcript, silences, scenes and faces: faster-whisper, Silero VAD, PySceneDetect, YuNet.</p></div></div>
+  <div class="st hi"><div class="dot">3</div><div class="card"><h3>Direct</h3><span class="t">Gemini 3.8 Flash</span>
+    <p>You say what you want. The Director plans the edit and calls 35 validated tools.</p></div></div>
+  <div class="st"><div class="dot">4</div><div class="card"><h3>Version</h3><span class="t">Tiger Data</span>
+    <p>Edits point at word IDs, not seconds. Every change is a new version you can undo.</p></div></div>
+  <div class="st"><div class="dot">5</div><div class="card"><h3>Sound</h3><span class="t">ElevenLabs</span>
+    <p>Music bed ducked under voice, SFX on cuts, custom effects, voiceover and dubbing.</p></div></div>
+  <div class="st"><div class="dot">6</div><div class="card"><h3>Render</h3><span class="t">FFmpeg + libass</span>
+    <p>A deterministic 1080×1920 export at −14 LUFS, with licence checks before it ships.</p></div></div>
+</div>
+<div class="nums">
+  <div><b>35</b><span>typed tools</span></div>
+  <div><b>439</b><span>licensed assets</span></div>
+  <div><b>368</b><span>tests</span></div>
+  <div><b>90 s</b><span>max length</span></div>
+</div>
+<div class="foot"><div class="logo">Clip<span>Z</span></div><div class="url">You talk. It cuts.</div></div>
+</body></html>

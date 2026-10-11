@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@900&display=swap">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:600px;height:600px;overflow:hidden;background:#2430FF}
+.tile{position:relative;width:600px;height:600px;background:#2430FF;overflow:hidden}
+.tile::before{content:"";position:absolute;inset:0;opacity:.1;background-image:radial-gradient(rgba(255,255,255,.95) 1.4px,transparent 1.4px);background-size:9px 9px}
+.z{position:absolute;inset:0;display:grid;place-items:center;font-family:"Unbounded","Arial Black",sans-serif;font-weight:900;font-size:470px;line-height:1;letter-spacing:0}
+.z span{display:block;transform:translateY(-6px)}
+.shadow{color:#0B0B14;transform:translate(20px,20px)}
+.a{color:#FFD400;clip-path:polygon(0 0,100% 0,100% 18%,0 82%)}
+.b{color:#FFD400;clip-path:polygon(0 86%,100% 22%,100% 100%,0 100%);transform:translate(16px,10px)}
+.shadow.a2{clip-path:polygon(0 0,100% 0,100% 18%,0 82%)}
+.shadow.b2{clip-path:polygon(0 86%,100% 22%,100% 100%,0 100%);transform:translate(36px,30px)}
+.rec{position:absolute;left:58px;top:56px;width:34px;height:34px;border-radius:50%;background:#FFD400;box-shadow:5px 5px 0 #0B0B14}
+</style></head><body>
+<div class="tile">
+  <div class="z shadow a2"><span>Z</span></div>
+  <div class="z shadow b2"><span>Z</span></div>
+  <div class="z a"><span>Z</span></div>
+  <div class="z b"><span>Z</span></div>
+</div>
+</body></html>
